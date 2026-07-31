@@ -47,6 +47,22 @@ function firstRefMatching(text: string, pattern: RegExp): string | undefined {
 }
 
 /**
+ * Just the event under triage, without the candidate block.
+ *
+ * Load-bearing: the seeded corpus contains prior decisions and docs that mention
+ * GraphQL, duplicates and performance, so matching intent against the whole prompt
+ * makes every scenario look like every other one — the first branch wins for all of
+ * them. A real model distinguishes "the thing I am judging" from "the evidence I was
+ * given" because the prompt labels them; this does the same.
+ */
+function eventSection(prompt: string): string {
+  const start = prompt.indexOf('## THE EVENT UNDER TRIAGE')
+  if (start === -1) return prompt
+  const end = prompt.indexOf('## CANDIDATES', start)
+  return end === -1 ? prompt.slice(start) : prompt.slice(start, end)
+}
+
+/**
  * Whether a Zod object schema declares a given key.
  *
  * Used to tell two agents apart when they share a task class. Reaching into
@@ -74,14 +90,32 @@ function schemaHasKey(schema: unknown, key: string): boolean {
  * here too rather than passing on a hardcoded answer.
  */
 function triageFixture(prompt: string): Record<string, unknown> {
-  const lower = prompt.toLowerCase()
+  /**
+   * Intent is read from the event alone; refs are resolved against the whole prompt
+   * (which is where the candidate block lives). Mixing the two makes every scenario
+   * match the first branch, because the seeded corpus discusses all of these topics.
+   */
+  const event = eventSection(prompt)
+  const lower = event.toLowerCase()
   const refs = refsInPrompt(prompt)
 
   // 1. Contradicts a documented architecture decision → REJECT.
   //    The most impressive single behaviour in the system (§14.2).
-  if (/graphql/i.test(prompt)) {
-    const doc = firstRefMatching(prompt, /adr|decision|doc/i) ?? refs[0]
+  if (/graphql/i.test(event)) {
+    /**
+     * Must cite the ADR specifically, not merely something that mentions GraphQL.
+     * The seeded corpus contains a PRD and a meeting note that both discuss the same
+     * topic, and citing either would attach the ADR's verbatim quote to a document
+     * that does not contain it — a fabricated citation that happens to name a real
+     * ref. Ordered patterns, most specific first, rather than one loose alternation.
+     */
+    const doc =
+      firstRefMatching(prompt, /adr-\d+|adr[-_]?0*7/i) ??
+      firstRefMatching(prompt, /arch.*review|granola/i)
     if (doc) {
+      const quote = /adr/i.test(doc)
+        ? 'we are not adding a GraphQL layer, decided 2026-06-12'
+        : 'Decision: no GraphQL layer. Recorded as ADR-0007.'
       return {
         outcome: 'REJECT',
         confidence: 0.91,
@@ -96,7 +130,7 @@ function triageFixture(prompt: string): Record<string, unknown> {
           {
             kind: 'doc',
             ref: doc,
-            quote: 'we are not adding a GraphQL layer, decided 2026-06-12',
+            quote,
             why: 'The architecture decision this request contradicts, with its date.',
           },
         ],
@@ -129,8 +163,22 @@ function triageFixture(prompt: string): Record<string, unknown> {
     }
   }
 
-  // 3. A reworded duplicate → MERGE. Requires a target by schema (D7).
-  if (/duplicate|same (error|failure|crash)|typeerror/i.test(lower)) {
+  /**
+   * 3. A reworded duplicate → MERGE. Requires a target by schema (D7).
+   *
+   * Deliberately narrow. An error string alone is not duplication: the seeded ACCEPT
+   * scenario reports the *same* TypeError from the *same* file but for a different
+   * trigger (an unknown token rather than an expired one), and merging those would
+   * bury a real bug under a closed one. That is the expensive mistake in triage, so
+   * the match requires the duplicate's own vocabulary — an expiry/timeout trigger —
+   * rather than just a shared exception.
+   */
+  const looksLikeDuplicate =
+    /duplicate|same (error|failure|crash)/i.test(lower) ||
+    (/typeerror/i.test(lower) && /expire|timed out|timeout/i.test(lower))
+  const describesDifferentTrigger = /unknown token|not (in|present in) the store|absent/i.test(lower)
+
+  if (looksLikeDuplicate && !describesDifferentTrigger) {
     const target = firstRefMatching(prompt, /#\d+/)
     if (target) {
       return {
@@ -155,7 +203,9 @@ function triageFixture(prompt: string): Record<string, unknown> {
   }
 
   // 4. Not enough information to act → DEFER with specific questions (D7).
-  if (/(doesn'?t|does not) work|broken|please fix|help/i.test(lower) && prompt.length < 2_400) {
+  //    The length bound is on the event, not the prompt: a short report stays short
+  //    regardless of how much evidence retrieval attached to it.
+  if (/(doesn'?t|does not) work|broken|please fix|help/i.test(lower) && event.length < 1_400) {
     const any = refs[0]
     if (any) {
       return {

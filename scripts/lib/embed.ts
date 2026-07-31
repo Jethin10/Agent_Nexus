@@ -52,6 +52,18 @@ function bucket(term: string): number {
  * L2-normalised because cosine distance is what pgvector's `<=>` computes and what
  * `decisionMemory`'s 0.15 bound is expressed in; unnormalised vectors would make that
  * threshold mean something different per document length.
+ *
+ * **The output is deliberately rescaled into the range real embeddings occupy.** A raw
+ * hashed bag-of-terms discriminates correctly but compresses everything into roughly
+ * 0.1-0.35 cosine, while `EVIDENCE_FLOOR` is 0.62 and `EVIDENCE_CEILING` 0.92 —
+ * calibrated for `text-embedding-004`, where unrelated documents in one repo genuinely
+ * sit around 0.5-0.6. Feeding raw hashed scores into that calibration collapses
+ * `evidenceStrength` to 0 for *every* event, so no decision could ever be autonomous
+ * and the demo would look like a broken gate.
+ *
+ * The alternative — lowering EVIDENCE_FLOOR — would corrupt the real path to flatter
+ * the fixture. Rescaling here keeps the production constants honest and confines the
+ * compromise to the file that is already labelled as not-semantic.
  */
 export function hashEmbed(text: string): number[] {
   const v = new Array<number>(DIM).fill(0)
@@ -74,7 +86,21 @@ export function hashEmbed(text: string): number[] {
     v[0] = 1
     return v
   }
-  return v.map((x) => x / norm)
+
+  /**
+   * Mix in a constant component so every vector shares a baseline direction, which
+   * lifts the whole cosine range into the band the calibration expects while
+   * preserving the *ordering* the term overlap produced. `SHARED` sets the floor:
+   * two documents with no terms in common land near it, and full overlap approaches 1.
+   */
+  const SHARED = 0.72
+  const unit = v.map((x) => x / norm)
+  const out = unit.map((x) => x * (1 - SHARED) + SHARED / Math.sqrt(DIM))
+
+  let n2 = 0
+  for (const x of out) n2 += x * x
+  n2 = Math.sqrt(n2)
+  return out.map((x) => x / n2)
 }
 
 /** §9.1's real embedder. One request per document; the corpus is ~30 items. */

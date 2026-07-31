@@ -77,7 +77,9 @@ describe('offline model — triage fixtures', () => {
       'REJECTs a request that contradicts a decision doc',
       'Please add a GraphQL endpoint for sessions',
       'We would like a GraphQL API for sessions.',
-      [candidate({ ref: 'doc:adr-graphql', kind: 'doc', title: 'ADR: no GraphQL layer' })],
+      // The ref must identify the ADR itself. A doc that merely mentions GraphQL is
+      // not the decision, and citing it would attach the ADR's quote to the wrong file.
+      [candidate({ ref: 'doc:adr-0007-no-graphql', kind: 'doc', title: 'ADR: no GraphQL layer' })],
       'REJECT',
     ],
     [
@@ -90,7 +92,7 @@ describe('offline model — triage fixtures', () => {
     [
       'MERGEs a reworded duplicate',
       "TypeError: cannot read 'id' of undefined",
-      'Same crash as another report.',
+      'Same crash as another report, happens once the token has expired.',
       [candidate({ ref: 'acme/api#412' })],
       'MERGE',
     ],
@@ -146,13 +148,31 @@ describe('offline model — triage fixtures', () => {
   })
 
   it('MERGE carries a mergeTargetId and DEFER carries missingInfo (D7)', async () => {
-    const merge = await runTriage("TypeError: cannot read 'id' of undefined", 'dup', [
-      candidate({ ref: 'acme/api#412' }),
-    ])
+    const merge = await runTriage(
+      "TypeError: cannot read 'id' of undefined",
+      'Duplicate of an existing report; the token had expired.',
+      [candidate({ ref: 'acme/api#412' })],
+    )
     expect(merge.value.mergeTargetId).toBe('acme/api#412')
 
     const defer = await runTriage('It does not work', 'please fix', [candidate({ ref: 'acme/api#5' })])
     expect(defer.value.missingInfo?.length).toBeGreaterThan(0)
+  })
+
+  it('does not merge a different trigger that shares an exception', async () => {
+    /**
+     * The expensive triage mistake: the same TypeError from the same file, but caused
+     * by an unknown token rather than an expired one, is a *different* bug. Merging it
+     * would bury real work under a closed issue, and a false MERGE is far worse than a
+     * false ACCEPT because nobody looks at it again.
+     */
+    const res = await runTriage(
+      'getSessionId should return null for an unknown token, not throw',
+      "Throws TypeError: cannot read 'id' of undefined when the token is absent from the store.",
+      [candidate({ ref: 'acme/api#412' })],
+    )
+    expect(res.value.outcome).not.toBe('MERGE')
+    expect(res.value.outcome).toBe('ACCEPT')
   })
 
   it('reports zero tokens — a fixture consumed no quota', async () => {

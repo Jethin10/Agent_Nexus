@@ -144,6 +144,51 @@ describe('retrieval — against real Postgres (PGlite + pgvector)', () => {
       const got = await vectorNeighbours(db, { orgId: ORG, vec: VEC_A, dim: 768 })
       expect(got.map((c) => c.entityId)).not.toContain('vec:otherorg')
     })
+
+    it('cites the upstream ref, not the internal uuid', async () => {
+      /**
+       * A citation is read by a human in the reject comment (§5.5) and matched by
+       * validateCitations. `embeddings.entity_id` for an event is an internal uuid, so
+       * surfacing it as the ref made every vector-sourced citation unreadable and
+       * unmatchable — the model would be asked to cite `0b102ab6-…` instead of
+       * `acme/api#412`.
+       */
+      const ev = normalize(
+        rawEvent({
+          sourceRef: 'acme/api#777',
+          title: 'An event with an upstream ref',
+          body: 'Body text for the embedding.',
+        }),
+      )
+      const { row } = await insertEvent(db, ev)
+      await addEmbedding(db, {
+        entityKind: 'event',
+        entityId: row.id,
+        content: 'An event with an upstream ref',
+        vec768: VEC_A,
+      })
+
+      const got = await vectorNeighbours(db, { orgId: ORG, vec: VEC_A, dim: 768 })
+      const hit = got.find((c) => c.entityId === row.id)
+      expect(hit).toBeDefined()
+      expect(hit!.ref).toBe('acme/api#777')
+      expect(hit!.ref).not.toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/)
+    })
+
+    it('falls back to the entity id for a non-event embedding', async () => {
+      // Decision and doc-chunk embeddings have no upstream ref; the left join must
+      // still return them rather than dropping them.
+      await addEmbedding(db, {
+        entityKind: 'decision',
+        entityId: 'decision-fallback-id',
+        content: 'REJECT: something previously refused',
+        vec768: VEC_A,
+      })
+      const got = await vectorNeighbours(db, { orgId: ORG, vec: VEC_A, dim: 768, limit: 20 })
+      const hit = got.find((c) => c.entityId === 'decision-fallback-id')
+      expect(hit).toBeDefined()
+      expect(hit!.ref).toBe('decision-fallback-id')
+    })
   })
 
   describe('source 2 — lexicalNeighbours', () => {

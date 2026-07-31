@@ -29,8 +29,21 @@ import { flushTraces, openRun } from './runtime.js'
  * `work/accepted` is emitted on exactly one path — an ACCEPT that opened a ticket.
  */
 
-/** The event row, rebuilt into the shape the pure agent expects. */
-function toNormalized(row: Awaited<ReturnType<typeof getEvent>>, body?: string): NormalizedEvent {
+/**
+ * The event row, rebuilt into the shape the pure agent expects.
+ *
+ * Exported because this is the one place that knows how a flat `EventRow` maps onto
+ * the nested `NormalizedEvent` — `actorId`/`actorHandle`/`actorIsBot` collapse into
+ * `actor`, and getting that wrong produces an event that typechecks through a cast
+ * and then throws inside the policy rules. Any caller replaying a stored row (the
+ * demo runner, an eval harness) must go through here rather than casting.
+ *
+ * `raw` is deliberately dropped: the agents never read it, and it can be 64 KiB.
+ */
+export function toNormalized(
+  row: Awaited<ReturnType<typeof getEvent>>,
+  body?: string,
+): NormalizedEvent {
   if (!row) throw new Error('toNormalized: no row')
   return NormalizedEvent.parse({
     id: row.id,

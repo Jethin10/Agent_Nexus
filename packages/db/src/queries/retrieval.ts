@@ -65,8 +65,30 @@ export async function vectorNeighbours(db: Db, q: VectorQuery): Promise<Candidat
       entityKind: embeddings.entityKind,
       content: embeddings.content,
       score: similarity,
+      /**
+       * The upstream ref, when this embedding describes an event.
+       *
+       * `embeddings.entity_id` is an internal uuid, and a citation pointing at one is
+       * unusable: §5.1 requires "a URL or stable id", the reject comment in §5.5
+       * quotes `#412`, and `validateCitations` matches the model's citation against
+       * these refs. Surfacing a uuid would make every vector-sourced citation
+       * unreadable to the human the comment is written for.
+       *
+       * Left join, so an embedding of something that is not an event (a decision, a
+       * doc chunk) still comes back and simply keeps its entity id.
+       */
+      sourceRef: events.sourceRef,
     })
     .from(embeddings)
+    .leftJoin(
+      events,
+      and(
+        eq(embeddings.entityKind, 'event'),
+        // text = uuid needs an explicit cast; cast the uuid so the index on
+        // entity_id stays usable (same reason as in decisionMemory).
+        sql`${embeddings.entityId} = ${events.id}::text`,
+      ),
+    )
     .where(
       and(
         eq(embeddings.orgId, q.orgId),
@@ -80,7 +102,7 @@ export async function vectorNeighbours(db: Db, q: VectorQuery): Promise<Candidat
   return rows.map((r) => ({
     entityId: r.entityId,
     kind: citationKind(r.entityKind),
-    ref: r.entityId,
+    ref: r.sourceRef ?? r.entityId,
     title: firstLine(r.content),
     content: snippet(r.content),
     source: 'vector' as const,
