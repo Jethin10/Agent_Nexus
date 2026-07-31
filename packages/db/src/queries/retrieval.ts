@@ -297,7 +297,17 @@ export async function decisionMemory(db: Db, q: DecisionMemoryQuery): Promise<Ca
     .innerJoin(events, eq(events.id, decisions.eventId))
     .innerJoin(
       embeddings,
-      and(eq(embeddings.entityId, decisions.eventId), eq(embeddings.entityKind, 'event')),
+      and(
+        /**
+         * `embeddings.entity_id` is text because the table is polymorphic across
+         * events, decisions, tickets and docs; `decisions.event_id` is a uuid. Postgres
+         * has no implicit text = uuid cast, so the uuid is cast rather than the text
+         * column — casting the other way would make the comparison unsargable and
+         * discard the index on `entity_id`.
+         */
+        sql`${embeddings.entityId} = ${decisions.eventId}::text`,
+        eq(embeddings.entityKind, 'event'),
+      ),
     )
     .where(
       and(
