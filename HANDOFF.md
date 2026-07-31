@@ -865,6 +865,9 @@ pnpm demo                 # Puts the five §16.2 scenarios through the real gate
                           #   `pnpm demo graphql` runs one by id; --verbose shows
                           #   every trace line and the full candidate set.
 pnpm dev                  # Dashboard on :3000 against that same local database.
+                          #   pnpm dev:replay for DEMO_MODE=replay.
+                          #   Both go through cross-env — a bare `VAR=1 pnpm ...`
+                          #   fails on Windows, where pnpm runs scripts via cmd.exe.
 ```
 
 Scenario ids: `graphql` `duplicate` `no-repro` `ambiguous` `real-bug`.
