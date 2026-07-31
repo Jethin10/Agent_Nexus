@@ -2,6 +2,7 @@ import { TriageOutcome } from '@ascendant/core'
 import { db, dashboardMetrics, eventCounts, outcomeCounts, spendToday, triagePrecision } from '@ascendant/db'
 import { DbError, Empty, Panel } from '@/components/bits'
 import { currentOrgId } from '@/lib/org'
+import { ensureDb } from '@/lib/local-db'
 import { Matrix } from '@/components/matrix'
 
 /**
@@ -19,6 +20,7 @@ export default async function MetricsPage() {
   const orgId = currentOrgId()
 
   try {
+    await ensureDb()
     const database = db()
     const [precision, metrics, outcomes, sources, spend] = await Promise.all([
       triagePrecision(database, orgId),

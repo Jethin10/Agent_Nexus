@@ -1,5 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { db, tickets, type TicketRow } from '@ascendant/db'
+import { ensureDb } from '@/lib/local-db'
 
 /**
  * The ticket for an event, if the gate opened one. Returns null for the four refusal
@@ -13,6 +14,7 @@ export async function TicketFor({
   orgId: string
   eventId: string
 }): Promise<TicketRow | null> {
+  await ensureDb()
   const rows = await db()
     .select()
     .from(tickets)

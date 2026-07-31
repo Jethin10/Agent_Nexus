@@ -10,6 +10,7 @@ import {
 } from '@ascendant/db'
 import { Confidence, DbError, Empty, OutcomeBadge, Panel, Pill, when } from '@/components/bits'
 import { currentOrgId } from '@/lib/org'
+import { ensureDb } from '@/lib/local-db'
 import { Timeline } from '@/components/timeline'
 import { TicketFor } from '@/components/ticket'
 
@@ -33,6 +34,7 @@ export default async function EventPage({ params }: Props) {
   const orgId = currentOrgId()
 
   try {
+    await ensureDb()
     const database = db()
     const event = await getEvent(database, orgId, id)
     if (!event) notFound()

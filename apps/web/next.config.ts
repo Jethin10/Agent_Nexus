@@ -16,7 +16,21 @@ const config: NextConfig = {
     '@ascendant/sandbox',
     '@ascendant/workflows',
   ],
-  serverExternalPackages: ['@neondatabase/serverless'],
+  /**
+   * Left as real Node requires rather than bundled.
+   *
+   * PGlite ships Postgres as a WASM binary plus gzipped extension bundles (pgvector
+   * among them) and locates them relative to its own module URL. Webpack rewrites
+   * those into `/_next/static/media/...` asset URLs, which the loader then cannot
+   * read — the failure is `Extension bundle not found: …/vector.tar.<hash>.gz` at
+   * request time, not at build time. Marking it external keeps the file layout it
+   * expects. It is only loaded on the offline path (see lib/local-db.ts).
+   */
+  serverExternalPackages: [
+    '@neondatabase/serverless',
+    '@electric-sql/pglite',
+    '@electric-sql/pglite-pgvector',
+  ],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },
 

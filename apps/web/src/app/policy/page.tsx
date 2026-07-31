@@ -2,6 +2,7 @@ import { CONFIG_KEYS, db, listConfig, readPolicy } from '@ascendant/db'
 import { CONFIDENCE, LIMITS } from '@ascendant/core'
 import { DbError, Panel, Pill, when } from '@/components/bits'
 import { currentOrgId } from '@/lib/org'
+import { ensureDb } from '@/lib/local-db'
 import { PolicyField } from '@/components/policy-field'
 
 /**
@@ -19,6 +20,7 @@ export default async function PolicyPage() {
   const orgId = currentOrgId()
 
   try {
+    await ensureDb()
     const database = db()
     const [policy, rows] = await Promise.all([
       readPolicy(database, orgId),

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { CONFIG_KEYS, db, writeConfig } from '@ascendant/db'
 import { currentOrgId } from '@/lib/org'
+import { ensureDb } from '@/lib/local-db'
 
 /**
  * §5.4 / §16 beat 4 — thresholds live in the `config` table so they can move without a
@@ -62,6 +63,7 @@ export async function updatePolicy(_prev: ActionResult | null, form: FormData): 
   const value = Math.min(spec.max, Math.max(spec.min, raw))
 
   try {
+    await ensureDb()
     await writeConfig(db(), currentOrgId(), spec.key, value, {
       note: `set from the Policy view`,
       updatedBy: 'dashboard',

@@ -3,6 +3,7 @@ import { TriageOutcome } from '@ascendant/core'
 import { db, inbox, outcomeCounts, readPolicy } from '@ascendant/db'
 import { Confidence, DbError, Empty, OutcomeBadge, Panel, Pill, when } from '@/components/bits'
 import { currentOrgId } from '@/lib/org'
+import { ensureDb } from '@/lib/local-db'
 
 /**
  * The Inbox — §11.1's first view, and the one the demo opens on.
@@ -33,6 +34,7 @@ export default async function InboxPage({ searchParams }: Props) {
   let error: unknown
 
   try {
+    await ensureDb()
     const database = db()
     ;[rows, counts, bands] = await Promise.all([
       inbox(database, orgId, {

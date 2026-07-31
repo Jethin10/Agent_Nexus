@@ -9,7 +9,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "dev": "pnpm --filter @ascendant/web dev",
+    "dev": "ASCENDANT_LOCAL_DB=1 pnpm --filter @ascendant/web dev",
     "web:build": "pnpm --filter @ascendant/web build",
     "db:generate": "pnpm --filter @ascendant/db generate",
     "db:push": "pnpm --filter @ascendant/db push",
