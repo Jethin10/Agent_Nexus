@@ -223,6 +223,9 @@ importers:
       '@ascendant/workflows':
         specifier: workspace:*
         version: link:../packages/workflows
+      drizzle-orm:
+        specifier: 0.38.4
+        version: 0.38.4(@electric-sql/pglite@0.5.4)(@neondatabase/serverless@0.10.4)(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(@types/react@19.0.7)(react@19.0.0)
       zod:
         specifier: 3.24.1
         version: 3.24.1

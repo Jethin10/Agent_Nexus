@@ -13,6 +13,7 @@
     "@ascendant/router": "workspace:*",
     "@ascendant/sandbox": "workspace:*",
     "@ascendant/workflows": "workspace:*",
+    "drizzle-orm": "0.38.4",
     "zod": "3.24.1"
   },
   "devDependencies": {

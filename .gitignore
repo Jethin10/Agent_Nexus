@@ -17,3 +17,6 @@ coverage/
 .inngest/
 tmp/
 *.log
+
+# local PGlite database (offline demo path)
+.ascendant/
