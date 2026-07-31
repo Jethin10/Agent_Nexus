@@ -1,0 +1,22 @@
+{
+  "name": "@ascendant/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ascendant/agents": "workspace:*",
+    "@ascendant/core": "workspace:*",
+    "@ascendant/db": "workspace:*",
+    "@ascendant/router": "workspace:*",
+    "@ascendant/sandbox": "workspace:*",
+    "@ascendant/workflows": "workspace:*",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.7",
+    "typescript": "5.7.3"
+  }
+}

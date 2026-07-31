@@ -203,6 +203,37 @@ importers:
         specifier: 5.7.3
         version: 5.7.3
 
+  scripts:
+    dependencies:
+      '@ascendant/agents':
+        specifier: workspace:*
+        version: link:../packages/agents
+      '@ascendant/core':
+        specifier: workspace:*
+        version: link:../packages/core
+      '@ascendant/db':
+        specifier: workspace:*
+        version: link:../packages/db
+      '@ascendant/router':
+        specifier: workspace:*
+        version: link:../packages/router
+      '@ascendant/sandbox':
+        specifier: workspace:*
+        version: link:../packages/sandbox
+      '@ascendant/workflows':
+        specifier: workspace:*
+        version: link:../packages/workflows
+      zod:
+        specifier: 3.24.1
+        version: 3.24.1
+    devDependencies:
+      '@types/node':
+        specifier: 22.10.7
+        version: 22.10.7
+      typescript:
+        specifier: 5.7.3
+        version: 5.7.3
+
 packages:
 
   '@bufbuild/protobuf@2.13.0':
