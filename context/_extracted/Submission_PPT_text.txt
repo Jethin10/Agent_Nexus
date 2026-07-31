@@ -1,0 +1,28 @@
+
+===== SLIDE 1 (Submission_PPT.pptx) =====
+♛ ♛ ♛
+ASCENDANT AGENTS
+TEAM NAME :
+TEAM MEMBERS :
+
+===== SLIDE 2 (Submission_PPT.pptx) =====
+PROBLEM STATEMENT
+
+===== SLIDE 3 (Submission_PPT.pptx) =====
+SOLUTION
+
+===== SLIDE 4 (Submission_PPT.pptx) =====
+ARCHITECTURE
+
+===== SLIDE 5 (Submission_PPT.pptx) =====
+TECHNOLOGY USED
+
+===== SLIDE 6 (Submission_PPT.pptx) =====
+Attach video link fo
+r demo
+WORKING PROTOTYPE
+
+===== SLIDE 7 (Submission_PPT.pptx) =====
+UTILITY/SCALABILITY
+
+[20 media files -> C:\Ascendant_Of_Agents\context\_extracted\Submission_PPT_media]

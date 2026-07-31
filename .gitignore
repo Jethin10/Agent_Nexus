@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# secrets — §15.4: no credentials in the repo, ever
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+
+# local artifacts
+coverage/
+.vercel/
+.inngest/
+tmp/
+*.log

@@ -1,0 +1,69 @@
+
+===== SLIDE 1 (Ascendant_Agents_Tracks.pptx) =====
+♛ ♛ ♛
+ASCENDANT AGENTS
+
+===== SLIDE 2 (Ascendant_Agents_Tracks.pptx) =====
+TRACK 01
+AI Recruitment Screening Agent
+An AI agent that helps companies hire faster:
+Parses and ranks resumes against a job description.
+Auto-schedules interviews based on availability.
+Drafts personalized candidate emails.
+Bonus: Flags potential bias in the shortlist.
+
+===== SLIDE 3 (Ascendant_Agents_Tracks.pptx) =====
+TRACK 02
+AI Travel Concierge
+An AI agent that plans and adapts trips in real time:
+Builds itineraries from budget, dates, and interests.
+Rebooks around flight delays or bad weather.
+Recommends local food, stays, and hidden gems.
+Bonus: Finds the lowest total cost across booking sites.
+
+===== SLIDE 4 (Ascendant_Agents_Tracks.pptx) =====
+TRACK 03
+AI Social Media Manager
+An AI agent that runs a brand's day-to-day content:
+Generates on-brand captions, posts, and hashtags.
+Schedules posts for peak engagement windows.
+Tracks comments and engagement trends.
+Bonus: Auto-replies to common comments/DMs in the brand voice.
+
+===== SLIDE 5 (Ascendant_Agents_Tracks.pptx) =====
+TRACK 04
+AI Academic Research Assistant
+An AI agent that speeds up literature review:
+Searches and summarizes relevant papers on a topic.
+Extracts key findings, methods, and citations.
+Organizes sources into a structured bibliography.
+Bonus: Flags contradicting findings across papers.
+
+===== SLIDE 6 (Ascendant_Agents_Tracks.pptx) =====
+TRACK 05
+AI Language Learning Tutor
+An AI agent that adapts to how a learner actually learns:
+Holds real conversations at the learner's level.
+Corrects mistakes with context-aware explanations.
+Adjusts difficulty as proficiency improves.
+Bonus: Builds personalized practice sets from past mistakes.
+
+===== SLIDE 7 (Ascendant_Agents_Tracks.pptx) =====
+TRACK 06
+AI Event Planning Agent
+An AI agent that manages an event start to finish:
+Suggests venues, vendors, and timelines within budget.
+Tracks RSVPs, spend, and vendor communication.
+Sends reminders to guests and vendors as the date nears.
+Bonus: Auto-adjusts logistics if headcount or budget shifts.
+
+===== SLIDE 8 (Ascendant_Agents_Tracks.pptx) =====
+TRACK 07
+Open Innovation
+A wildcard track for any AI agent idea outside the listed tracks:
+Pick any real-world problem you want to solve with an AI agent.
+Not restricted to the themes covered in Tracks 1-6.
+Judged on originality, feasibility, and real-world impact.
+Bonus: Extra credit for tackling a genuinely novel problem space.
+
+[20 media files -> C:\Ascendant_Of_Agents\context\_extracted\Ascendant_Agents_Tracks_media]

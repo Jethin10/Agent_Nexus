@@ -1,0 +1,29 @@
+{
+  "name": "@ascendant/workflows",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ascendant/agents": "workspace:*",
+    "@ascendant/connectors": "workspace:*",
+    "@ascendant/core": "workspace:*",
+    "@ascendant/db": "workspace:*",
+    "@ascendant/router": "workspace:*",
+    "@ascendant/sandbox": "workspace:*",
+    "drizzle-orm": "0.38.4",
+    "inngest": "3.39.2",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3"
+  }
+}

@@ -1,0 +1,299 @@
+/*
+ * One stylesheet, no framework. The dashboard's job is to make a triage decision and a
+ * debate legible in a four-minute demo, and a dependency-free stylesheet is one fewer
+ * thing that can fail to build the morning of.
+ */
+:root {
+  --bg: #0b0d11;
+  --panel: #14171d;
+  --panel-2: #1a1e26;
+  --line: #262b35;
+  --text: #e6e9ef;
+  --muted: #98a1b3;
+  --dim: #6b7488;
+
+  /* One hue per triage outcome. Four of the five are refusals, and they must be
+     distinguishable at a glance from across a room. */
+  --accept: #3fb950;
+  --reject: #f85149;
+  --merge: #a371f7;
+  --defer: #d29922;
+  --escalate: #58a6ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+a {
+  color: var(--escalate);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+code,
+pre,
+.mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+/* ── shell ─────────────────────────────────────────────────────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: 216px 1fr;
+  min-height: 100vh;
+}
+.sidebar {
+  border-right: 1px solid var(--line);
+  padding: 20px 14px;
+  background: var(--panel);
+}
+.brand {
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  font-size: 15px;
+}
+.tagline {
+  color: var(--dim);
+  font-size: 11.5px;
+  margin: 2px 0 22px;
+}
+.nav a {
+  display: block;
+  padding: 7px 9px;
+  border-radius: 6px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.nav a:hover {
+  background: var(--panel-2);
+  color: var(--text);
+  text-decoration: none;
+}
+.main {
+  padding: 22px 26px 60px;
+  max-width: 1180px;
+}
+h1 {
+  font-size: 19px;
+  margin: 0 0 4px;
+  letter-spacing: -0.2px;
+}
+.lede {
+  color: var(--muted);
+  margin: 0 0 20px;
+  max-width: 70ch;
+}
+
+/* ── panels, tables ───────────────────────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.panel h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--dim);
+  border-bottom: 1px solid var(--line);
+  padding: 7px 8px;
+  font-weight: 600;
+}
+td {
+  padding: 9px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+tr:last-child td {
+  border-bottom: none;
+}
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── outcome badges ───────────────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.3px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.b-ACCEPT { color: var(--accept); }
+.b-REJECT { color: var(--reject); }
+.b-MERGE { color: var(--merge); }
+.b-DEFER { color: var(--defer); }
+.b-ESCALATE { color: var(--escalate); }
+.b-none { color: var(--dim); }
+
+.muted { color: var(--muted); }
+.dim { color: var(--dim); }
+.small { font-size: 12px; }
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pill {
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.flag {
+  color: var(--defer);
+  border-color: var(--defer);
+}
+
+/* ── confidence bar ───────────────────────────────────────────────────────── */
+.conf {
+  min-width: 132px;
+}
+.conf-track {
+  height: 5px;
+  background: var(--panel-2);
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.conf-fill {
+  height: 100%;
+}
+
+/* ── timeline ─────────────────────────────────────────────────────────────── */
+.tl {
+  border-left: 2px solid var(--line);
+  margin-left: 8px;
+  padding-left: 16px;
+}
+.tl-item {
+  position: relative;
+  padding: 9px 0;
+}
+.tl-item::before {
+  content: "";
+  position: absolute;
+  left: -23px;
+  top: 15px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+  border: 2px solid var(--bg);
+}
+.tl-agent {
+  font-weight: 650;
+  text-transform: capitalize;
+}
+pre.block {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--muted);
+}
+blockquote {
+  margin: 6px 0;
+  padding-left: 11px;
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+}
+
+/* ── matrix ───────────────────────────────────────────────────────────────── */
+.matrix td,
+.matrix th {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.matrix .diag {
+  background: rgba(63, 185, 80, 0.1);
+  font-weight: 650;
+}
+.matrix .bad {
+  background: rgba(248, 81, 73, 0.16);
+  font-weight: 650;
+  color: var(--reject);
+}
+.stat {
+  font-size: 26px;
+  font-weight: 660;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+  gap: 12px;
+}
+input[type='number'],
+input[type='text'] {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+  width: 100px;
+}
+button {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font: inherit;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.banner {
+  border: 1px solid var(--defer);
+  background: rgba(210, 153, 34, 0.09);
+  color: var(--defer);
+  border-radius: 8px;
+  padding: 10px 13px;
+  margin-bottom: 16px;
+}
