@@ -7,7 +7,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./schema": "./src/schema/index.ts"
+    "./schema": "./src/schema/index.ts",
+    "./local": "./src/local.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -17,6 +18,8 @@
   },
   "dependencies": {
     "@ascendant/core": "workspace:*",
+    "@electric-sql/pglite": "0.5.4",
+    "@electric-sql/pglite-pgvector": "0.0.5",
     "@neondatabase/serverless": "0.10.4",
     "drizzle-orm": "0.38.4",
     "zod": "3.24.1"

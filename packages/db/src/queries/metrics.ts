@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm'
 import { TriageOutcome } from '@ascendant/core'
-import type { Db } from '../client'
+import { executeRows, type Db } from '../client'
 import { decisions } from '../schema/decisions'
 import { outcomes, type OutcomeRow } from '../schema/outcomes'
 import { overturns, type OverturnRow } from '../schema/overturns'
@@ -240,7 +240,11 @@ export async function dashboardMetrics(db: Db, orgId: string) {
  * ones it actually keeps having to argue about.
  */
 export async function repeatedObjections(db: Db, orgId: string, minCount = 3) {
-  const rows = await db.execute(sql`
+  // Row type named at the call, widened once in executeRows: `Db` is driver-agnostic
+  // (see client.ts), so a raw execute has no row type until it is given one.
+  return executeRows<{ rule: string; n: number }>(
+    db,
+    sql`
     select detail->>'rule' as rule, count(*)::int as n
     from agent_events
     where org_id = ${orgId}
@@ -251,6 +255,6 @@ export async function repeatedObjections(db: Db, orgId: string, minCount = 3) {
     having count(*) >= ${minCount}
     order by n desc
     limit 20
-  `)
-  return rows.rows as { rule: string; n: number }[]
+  `,
+  )
 }

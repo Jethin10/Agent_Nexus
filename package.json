@@ -21,5 +21,15 @@
     "tsx": "4.19.2",
     "typescript": "5.7.3",
     "vitest": "3.0.4"
+  },
+  "pnpm": {
+    "peerDependencyRules": {
+      "//": "drizzle-orm declares every driver as an optional peer, so adding @electric-sql/pglite made pnpm resolve a SECOND drizzle-orm instance for @ascendant/db. Two copies means two structurally identical but nominally distinct SQL<> types, and every query passed across a package boundary fails to typecheck. Ignoring the peer keeps one instance for the whole workspace; the driver is imported directly by db/src/local.ts either way.",
+      "ignoreMissing": [],
+      "allowedVersions": {}
+    },
+    "overrides": {
+      "drizzle-orm": "0.38.4"
+    }
   }
 }
