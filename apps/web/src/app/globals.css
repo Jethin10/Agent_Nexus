@@ -178,6 +178,19 @@ tr:last-child td {
   color: var(--defer);
   border-color: var(--defer);
 }
+/* A button that reads as a link — the replay controls, which are actions, not navigation. */
+.linkish {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkish:hover {
+  color: var(--text);
+}
 
 /* ── confidence bar ───────────────────────────────────────────────────────── */
 .conf {

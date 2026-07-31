@@ -9,9 +9,10 @@ import {
   ticketTrace,
 } from '@ascendant/db'
 import { Confidence, DbError, Empty, OutcomeBadge, Panel, Pill, when } from '@/components/bits'
-import { currentOrgId } from '@/lib/org'
+import { currentOrgId, demoMode } from '@/lib/org'
 import { ensureDb } from '@/lib/local-db'
 import { Timeline } from '@/components/timeline'
+import { ReplayTimeline } from '@/components/replay-timeline'
 import { TicketFor } from '@/components/ticket'
 
 /**
@@ -181,6 +182,9 @@ export default async function EventPage({ params }: Props) {
         <Panel title="The run">
           {timeline.length === 0 ? (
             <Empty>No trace rows for this event yet.</Empty>
+          ) : demoMode() === 'replay' ? (
+            /* Same rows, same renderer — only the pacing is reconstructed (§16.3). */
+            <ReplayTimeline rows={timeline} />
           ) : (
             <Timeline rows={timeline} />
           )}
