@@ -7,7 +7,7 @@ made that a future agent could accidentally revert, or a blocker opens or closes
 Append to the Decisions log — never rewrite history there. Keep the Status board
 and Next step accurate; everything else is reference.
 
-Last updated: 2026-07-31 · after §17 steps 2-5
+Last updated: 2026-07-31 · after §17 steps 2-5, and the first end-to-end run
 
 ---
 
@@ -48,7 +48,7 @@ Nothing is cut, only sequenced. Steps 1-3 alone are a defensible submission;
 | # | Step | State |
 |---|---|---|
 | 1 | db schema + Normalizer + GitHub connector | **done** |
-| 2 | Triage Gate + retrieval + decision object | **done** |
+| 2 | Triage Gate + retrieval + decision object | **done** — and now *executed*, see below |
 | 3 | Dashboard Inbox + Run Detail | **done** (Inbox, Run Detail, Metrics, Policy) |
 | 4 | Inngest workflows + LLM router | **done** (6 functions, router, budget) |
 | 5 | Planner/Coder/Reviewer/QA + E2B sandbox | **done** (8 agents, 3 drivers) |
@@ -56,10 +56,21 @@ Nothing is cut, only sequenced. Steps 1-3 alone are a defensible submission;
 | 7 | Remaining connectors (Linear/Gmail/GCal/Drive/Granola) | todo |
 | 8 | Learning loop + eval set + metrics | queries + views **done**; `pnpm eval` todo |
 | 9 | Security layers 1-4 hardening | all 4 layers **done**; no dashboard auth |
-| 10 | Seed fixtures + recorded demo + offline fallbacks | **next** |
+| 10 | Seed fixtures + recorded demo + offline fallbacks | seed + runner + replay **done**; recording todo |
 
-Verification state right now: `pnpm -r typecheck` clean across all 8 workspace
-projects, `pnpm test` = **309 passing**, and `next build` compiles all 7 routes.
+**The system now runs.** Until 2026-07-31 nothing in this repo had ever executed:
+no database existed, so the four retrieval queries had never touched Postgres, and
+the gate had only been exercised through a canned `complete()`. That is no longer
+true, and running it found four real bugs (§5, D24-D27).
+
+```
+pnpm seed:demo   28 events, 42 embeddings, 14 decisions, 6 tickets, 1 overturn
+pnpm demo        all five outcomes produced by the real gate, from a clean database
+pnpm dev         four views rendering that data at localhost:3000
+```
+
+Verification state right now: `pnpm -r typecheck` clean across all **9** workspace
+projects, `pnpm test` = **363 passing**, and `next build` compiles all 7 routes.
 
 | suite | tests |
 |---|---|
@@ -69,35 +80,44 @@ projects, `pnpm test` = **309 passing**, and `next build` compiles all 7 routes.
 | agents: triage / pipeline / delivery | 18 / 19 / 26 |
 | sandbox: guards + local driver | 33 |
 | workflows: applyDiff + repo client | 16 |
+| **db: retrieval against real Postgres** | **18** |
+| **scripts: offline model / embedder** | **20 / 6** |
+| **web: replay schedule** | **10** |
 
 ---
 
 ## 3. Next step, concretely
 
-**§17 step 10 — seed fixtures, then the eval set (step 8).** The pipeline is
-built end to end and nothing has ever run against a live database or a real key.
-Everything below this line is written and tested; nothing below it is *proven*.
+**A Groq key, then the eval set (§17 step 8).**
 
-Do these in order, because each unblocks the next:
+The gate runs end to end, but its *reasoning* is still a fixture unless a key is
+set. Everything around the reasoning — the six policy rules, all four retrieval
+sources, citation validation, the confidence recomputation, banding, the ESCALATE
+overrides — is real either way. Only the model's text is canned, and it is
+labelled `fixture:*` everywhere it surfaces so it can never be mistaken for
+inference.
 
-1. **Provision Neon** (B1) and `pnpm db:push`. Nothing else can be verified until
-   a real Postgres exists — the four retrieval queries in
-   `db/queries/retrieval.ts` have never executed.
-2. **`scripts/seed-demo.ts`** (§16.1): ~40 historical issues, 12 merged PRs, 3
-   design docs, 2 meeting notes, and the one architecture decision doc saying
-   *"we are not adding a GraphQL layer, decided 2026-06-12."* That document is
-   the setup for the best moment in the demo, so it is not optional colour.
-   Embeddings need a Gemini key; without one, sources 1 and 4 return `[]` and
-   `degraded` says so.
-3. **Get a Groq key** (B2) and run one real event end to end. The triage agent's
-   model call has only ever been exercised through a canned `complete()`.
-4. **`scripts/eval.ts`** (step 8, §11.2): 60 hand-labelled real GitHub issues →
+1. **`GROQ_API_KEY=...` then `pnpm demo`.** Nothing else changes: `openRunContext`
+   in `scripts/lib/context.ts` switches `agent.complete` from the fixture to the
+   real router and the run is otherwise identical. This is the one remaining
+   unexercised path in the gate.
+2. **`GEMINI_API_KEY=...` then `pnpm seed:demo`.** Swaps the hashed pseudo-vectors
+   for real `text-embedding-004`. Retrieval sources 1 and 4 already work offline,
+   but on a lexical proxy rather than a semantic space (D27).
+3. **`scripts/eval.ts`** (step 8, §11.2): 60 hand-labelled real GitHub issues →
    confusion matrix → `evals/results-<date>.json`. `triagePrecision()` and the
-   `Matrix` component already read it; the labelled set itself does not exist.
+   `Matrix` component already read it and currently report **91.7%** off the
+   seeded history; the hand-labelled set itself does not exist.
    **Run this the night before, not the morning of** — ~1,500 Groq requests
    against a 1,000 RPD ceiling.
+4. **Provision Neon** (B1) when a deployment is actually needed. It is no longer
+   a blocker for local work: `ASCENDANT_LOCAL_DB=1` opens a real Postgres
+   in-process (D24), and the four retrieval queries are now covered by tests that
+   run against it in CI.
 5. **Steps 6-7**: Linear and Slack delivery, then the remaining connectors. The
    GitHub half of delivery is done (`workflows/github-write.ts`).
+6. **Dashboard auth (B8)** before this is exposed anywhere. Anyone who can reach
+   `/policy` can lower the autonomy threshold.
 
 ### The wiring, end to end
 
@@ -230,7 +250,24 @@ packages/workflows/         11 src files — the ONLY layer that does I/O
 apps/web/                   Next 15 App Router, 4 views + 2 API routes
 ```
 
-`scripts/` does not exist yet — `seed-demo.ts` and `eval.ts` are the next step.
+```
+scripts/                    the 9th workspace project — runs the system offline
+  seed-demo.ts              builds the corpus; seeds nothing that decides anything
+  demo.ts                   drives the five §16.2 scenarios through the real gate
+  lib/fixtures.ts           28 events incl. the ADR the graphql scenario cites
+  lib/context.ts            openLocalDb + openRunContext — the one place the
+                            fixture/real model and local/remote db choices are made
+  lib/offline-model.ts      fixture `complete()` (D29)
+  lib/embed.ts              hashed pseudo-embeddings (D27)
+```
+
+`scripts/eval.ts` is the one piece still missing — it needs the 60 hand-labelled
+issues, not just the harness.
+
+The seed and the runner are deliberately **separate programs**: the seed writes only
+history, and every outcome the demo shows is produced by `triage()` at run time. If
+those ever merge, the demo's central claim — that the outcomes are decided, not
+replayed — stops being verifiable.
 
 ### packages/core
 Every file here is a pure function or a Zod schema. No I/O anywhere, by design:
@@ -460,6 +497,97 @@ repo under test builds itself.
 
 ---
 
+The next four were found by *running* the system for the first time (2026-07-31).
+None was visible to `tsc` or to the 309 tests that existed before. Recording them
+together because they share a lesson: the parts of this system whose correctness
+lives in SQL, in a cast, or in a calibration constant cannot be verified by a
+typecheck, and three of the four failed silently rather than loudly.
+
+**D24 — the offline path is PGlite, not Docker + Postgres.**
+§16.3 insurance item 2 assumed Docker; it is not installed here (B4). PGlite is
+real Postgres compiled to WASM, in-process, no daemon and no port. Every feature
+the retrieval layer needs works under it: the `vector` extension, `vector(768)`,
+HNSW indexes, the `<=>` cosine operator, `websearch_to_tsquery`/`ts_rank`, and the
+jsonb `?|` overlap. `drizzle-orm/pglite` ships inside the pinned 0.38.4, so this
+cost no version bump.
+
+Two consequences worth not reverting. First, `Db` is now drizzle's driver-agnostic
+`PgDatabase<PgQueryResultHKT, typeof schema>` rather than one driver's concrete
+return type — that is what lets the ten tables' queries be written once and run
+against both neon-http and PGlite. Pinning it back to `ReturnType<typeof makeDb>`
+would fork every query into two implementations. Second, PGlite is a **subpath
+export** (`@ascendant/db/local`) and is in `serverExternalPackages`: it locates its
+WASM and its gzipped extension bundles relative to its own module URL, and webpack
+rewrites those into `/_next/static/media/...` asset URLs that the loader cannot
+read. That failure appears at *request* time as
+`Extension bundle not found: …/vector.tar.<hash>.gz`, with a clean build and a
+clean typecheck.
+
+**D25 — `decisionMemory` had to cast `uuid` to `text`, not the reverse.**
+It joined `embeddings.entity_id` (text, because the table is polymorphic across
+events, decisions, tickets and docs) to `decisions.event_id` (uuid). Postgres has
+no implicit `text = uuid` cast, so the query threw **every time it ran**.
+`retrieveCandidates` catches per-source failures by design, so this never surfaced
+as an error — retrieval source 4 simply returned `[]` on every triage, and the gate
+silently lost the memory of its own judgements. That is the source that makes a
+re-filed rejected issue cite its own prior rejection (§5.3 item 4). Cast the uuid,
+not the text column: casting the other way makes the comparison unsargable and
+discards the index on `entity_id`.
+
+**D26 — vector candidates cite the upstream ref, not the internal uuid.**
+`vectorNeighbours` returned `embeddings.entity_id` as `Candidate.ref`. §5.1 requires
+"a URL or stable id", the §5.5 reject comment quotes `#412`, and `validateCitations`
+matches the model's citation against these refs — so a citation reading
+`0b102ab6-…` was unreadable to the human the comment is written for and unmatchable
+against anything a person would type. Now left-joins `events` to surface
+`source_ref`, falling back to the entity id for embeddings that are not events
+(decision rows, doc chunks). Pinned by a test that asserts the ref is not a uuid.
+
+**D27 — the offline embedder is rescaled to the range the evidence calibration
+expects; `EVIDENCE_FLOOR` was NOT lowered.**
+Without `GEMINI_API_KEY` the seed generates deterministic hashed term vectors, so
+retrieval sources 1 and 4 exercise the real pgvector path instead of returning `[]`.
+Raw hashed bags-of-terms discriminate correctly but compress into ~0.1-0.35 cosine,
+while `EVIDENCE_FLOOR` is 0.62 — calibrated for `text-embedding-004`, where
+unrelated same-repo documents genuinely sit at 0.5-0.6. Feeding raw hashed scores
+into that calibration collapsed `evidenceStrength` to 0 for *every* event, so no
+decision could ever be autonomous and the gate looked broken.
+
+The tempting fix — lower `EVIDENCE_FLOOR` — would corrupt the real inference path to
+flatter a fixture. The rescaling instead lives in `scripts/lib/embed.ts`, the file
+already labelled as not-semantic, and is covered by a test asserting that related
+documents clear the floor while unrelated ones stay measurably below them. **These
+vectors are a lexical proxy, not a learned space**; the seed output says so.
+
+**D28 — `toNormalized` is exported from `workflows/triage.ts`.**
+It is the only code that knows how a flat `EventRow` (`actorId`/`actorHandle`/
+`actorIsBot`) maps onto a nested `NormalizedEvent` (`actor`). While it was private,
+the demo runner cast between the two instead: the cast typechecked and then threw
+inside the policy rules on the first real run. Any caller replaying a stored row —
+the runner, a future eval harness — must go through it rather than casting.
+
+**D29 — the offline model is a fixture, and says so in every row it touches.**
+`scripts/lib/offline-model.ts` supplies `AgentContext.complete` when no LLM key is
+set. R1 (agents are pure, `complete` is injected) is what makes this reach all eight
+agents without touching one of them. Three properties keep it honest: every response
+is labelled `fixture:<task>`, which lands in `agent_events.model` and
+`decisions.model_used`; the response is validated through the *caller's* own Zod
+schema, so a drifted fixture fails exactly as a bad model response would; and the
+triage fixture reads candidate refs out of the prompt it was handed, so it can only
+cite evidence retrieval actually returned. Reported token cost is 0, because a
+fixture consumed no quota and reporting otherwise would corrupt the budget
+accounting on the dashboard.
+
+Two things the fixture had to learn that a real model gets for free, both found by
+running it: intent must be read from the **event** section of the prompt rather than
+the whole prompt (the seeded corpus discusses all five scenario topics, so every
+scenario matched the first branch), and a shared exception is not enough to justify
+MERGE (the ACCEPT scenario reports the same `TypeError` from the same file for a
+*different* trigger, and merging those buries real work under a closed issue — the
+expensive triage mistake).
+
+---
+
 ## 6. Rules that must not be broken
 
 Two load-bearing invariants. Violating either quietly destroys a property the
@@ -531,15 +659,16 @@ line. It happened twice, from a tool the agent had every reason to trust.
 
 | # | Item | Blocks | Notes |
 |---|---|---|---|
-| B1 | No Neon database provisioned; `DATABASE_URL` unset | **everything unverified** — the 4 retrieval queries have never executed | `db()` throws loudly rather than connecting to nothing |
-| B2 | No Groq key | one real triage call; prompt-guard | the gate is only ever exercised through a canned `complete()` |
-| B3 | No Vercel / Inngest project | live webhooks + durable runs | see the org-repo trap below |
-| B4 | **Docker not installed** (`docker -v` → not found) | §16.3 offline demo fallback | local Postgres+pgvector is one of four non-negotiable insurance items |
+| B1 | ~~No Neon database~~ | — | **downgraded** — `ASCENDANT_LOCAL_DB=1` opens a real Postgres in-process (D24) and the 4 retrieval queries now run in CI. Neon is still needed to *deploy*, not to work. |
+| B2 | No Groq key | **the gate's reasoning only** | everything around it is real; the model's text is a fixture labelled `fixture:*` (D29). One env var switches it. |
+| B3 | No Vercel / Inngest project | live webhooks + durable runs | see the org-repo trap below. `pnpm demo` drives the same functions without them. |
+| B4 | ~~Docker not installed~~ | — | **closed** — PGlite replaces it and needs no daemon (D24) |
 | B5 | ~~No `.env.example`~~ | — | **closed** — written, names only |
 | B6 | Team name + members blank on submission deck slide 1 | submission | |
-| B7 | No Gemini key | embeddings → retrieval sources 1 and 4 | they return `[]` and say so in `degraded`; the gate still works on lexical + git |
+| B7 | No Gemini key | *semantic* embeddings | sources 1 and 4 work offline on hashed vectors — a lexical proxy, not a learned space (D27) |
 | B8 | Dashboard has **no auth** | exposing it beyond a private demo URL | anyone reaching `/policy` can lower the autonomy threshold. First thing to fix. |
-| B9 | No E2B key and no Actions workflow file | QA has no test signal | `qa` returns `inconclusive` rather than a green tick it did not earn |
+| B9 | No E2B key and no Actions workflow file | QA against a real repo | `localDriver` gives a real test signal offline via `ASCENDANT_ALLOW_LOCAL_SANDBOX=1`; `qa` still returns `inconclusive` rather than a green tick it did not earn |
+| B10 | No recorded 4-minute screen capture | §16.3 insurance item 1 | the only one of the four still missing: seed, `DEMO_MODE=replay` and the offline DB are all done |
 
 **The org-repo trap:** Vercel Hobby **cannot connect to Git repos owned by a
 GitHub organization.** The repo must live under a personal account. Discovering
@@ -695,36 +824,82 @@ The demo is a deliverable, not an afterthought — build toward these beats.
 4. The eval confusion matrix, then drag the autonomy threshold 0.80 → 0.95 in the
    Policy view and re-run beat 1's issue: same decision, now routed to a human.
 
+Beats 1-3 run today via `pnpm demo`, at 0.88 / 0.86 / 0.78 / 0.64 / 0.85 confidence
+respectively, and each writes a Run Detail page. Beat 4's matrix renders off the
+seeded history at **91.7%**; the threshold drag works through the Policy view.
+Substituting a real eval set changes the numbers, not the wiring.
+
+Two caveats to state out loud rather than hope nobody asks. The ACCEPT beat opens a
+ticket but does not yet produce a PR offline — that needs `GITHUB_TOKEN` and a real
+repo (B3/B9). And the reasoning text is a fixture until `GROQ_API_KEY` is set (D29);
+the retrieval, policy, confidence and banding around it are real either way. Better
+to say so than to be caught claiming inference that did not happen.
+
 **Four non-negotiable insurance items (§16.3):**
-1. A recorded 4-minute screen capture.
-2. `pg_dump` of the seeded DB committed, plus local Postgres+pgvector via Docker
-   (blocked — B4).
-3. `DEMO_MODE=replay` serving stored `agent_events` at their original timing.
+1. A recorded 4-minute screen capture — **still missing (B10)**, and now the only
+   one. Record it against the offline path so it cannot break on the day.
+2. ~~`pg_dump` + Docker~~ → **done differently.** `pnpm seed:demo` rebuilds the
+   database from source fixtures in ~15s with no daemon and no network (D24), which
+   is strictly better than a dump: it is diffable, reviewable, and regenerates
+   rather than restores.
+3. ~~`DEMO_MODE=replay`~~ → **done.** Run Detail reveals stored `agent_events` at
+   their original relative pacing, labelled as a replay.
 4. **Run `pnpm eval` the night before, not the morning of** — it is ~1,500 Groq
-   requests against a 1,000 RPD ceiling.
+   requests against a 1,000 RPD ceiling. Still applies, unchanged.
+
+The demo now has no hard dependency on network, keys, Docker, or a cloud database.
+That was the point of §16.3.
 
 ---
 
 ## 10. Commands
 
+The three-command demo, no keys and no network required:
+
+```bash
+pnpm seed:demo            # ~15s. Fresh local Postgres, 28 events, 42 embeddings,
+                          #   14 historical decisions, 6 tickets, 1 overturn.
+                          #   --keep to add to an existing database instead.
+pnpm demo                 # Puts the five §16.2 scenarios through the real gate.
+                          #   Exits non-zero if any outcome is not the expected one.
+                          #   `pnpm demo graphql` runs one by id; --verbose shows
+                          #   every trace line and the full candidate set.
+pnpm dev                  # Dashboard on :3000 against that same local database.
+```
+
+Scenario ids: `graphql` `duplicate` `no-repro` `ambiguous` `real-bug`.
+
+Everything else:
+
 ```bash
 pnpm install              # pnpm@9.15.4, pinned via packageManager
-pnpm -r typecheck         # all 8 workspace projects
-pnpm test                 # vitest run, from the root; no vitest.config.ts needed
+pnpm -r typecheck         # all 9 workspace projects
+pnpm test                 # vitest run, from the root; 363 tests
 pnpm db:generate          # drizzle-kit generate — re-add the vector extension line (D2)
 pnpm db:push              # needs DATABASE_URL
-pnpm --filter @ascendant/web build   # next build — catches resolver problems typecheck cannot (D17)
-pnpm --filter @ascendant/web dev     # dashboard on :3000
-pnpm seed:demo            # scripts/seed-demo.ts — not written yet
+pnpm --filter @ascendant/web build   # next build — catches resolver problems typecheck cannot (D17, D24)
 pnpm eval                 # scripts/eval.ts — not written yet
 ```
 
-`pnpm -r typecheck` passing is **not** sufficient before a deploy: webpack resolves
-module paths differently from `tsc`, so run the `web build` too. D17 and D23 were
-both invisible to typecheck alone.
+Env vars that change behaviour rather than just supplying credentials:
 
-Environment: Windows 11, bash shell, node ≥20, git repo initialised on `main`
-with no commits yet.
+| var | effect |
+|---|---|
+| `ASCENDANT_LOCAL_DB=1` | use in-process PGlite at `.ascendant/pgdata`. **Ignored when `DATABASE_URL` is set**, so it cannot shadow a real database by accident. |
+| `DEMO_MODE=replay` | Run Detail reveals stored `agent_events` at their original relative pacing, with a banner saying so |
+| `DEMO_MODE=live` | badge only; no behaviour change |
+| `GROQ_API_KEY` | swaps the fixture model for the real router (D29) |
+| `GEMINI_API_KEY` | swaps hashed vectors for `text-embedding-004` (D27) |
+| `ASCENDANT_ORG_ID` | defaults to `org_demo`; the seed, the runner and the dashboard must agree |
+
+`pnpm -r typecheck` passing is **not** sufficient before a deploy: webpack resolves
+module paths differently from `tsc`, so run the `web build` too. D17, D23 and D24
+were all invisible to typecheck alone — and D24 was invisible to the build as well,
+surfacing only on a request.
+
+Environment: Windows 11, bash shell, node ≥20, git repo on `main`. `.ascendant/` and
+`evals/` are gitignored; the local database is disposable and `pnpm seed:demo`
+recreates it from scratch.
 
 Pinned versions worth knowing, all chosen to avoid a workspace-wide bump:
 `inngest@3.39.2` (3.44+ requires TypeScript ≥5.8; 3.54+ also requires zod ≥3.25),
