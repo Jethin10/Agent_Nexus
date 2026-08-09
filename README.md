@@ -33,6 +33,11 @@ pnpm demo          # puts five scenarios through the real gate
 pnpm dev           # dashboard at http://localhost:3000
 ```
 
+`pnpm demo` is re-runnable: it clears the decisions from the previous run so the gate
+decides again and narrates every stage. Pass `--keep` to preserve them instead, which is
+what production does — a decision row is immutable, and re-deciding an event would
+double-spend the token budget and could post a duplicate comment.
+
 `pnpm demo` prints each stage as it happens — which deterministic rules fired, what retrieval found and from which source, the three weighted confidence components, which band rules applied, and every citation:
 
 ```
@@ -189,13 +194,22 @@ Everything above runs with zero credentials. Adding keys upgrades specific parts
 
 | Env var | Effect |
 |---|---|
-| `GROQ_API_KEY` | real inference instead of recorded fixtures |
+| `ASCENDANT_LIVE=1` | **use real inference at all.** A key alone is not enough — see below |
+| `GROQ_API_KEY` | the triage rungs (capability 0.95). This is the one that matters |
 | `GEMINI_API_KEY` | real `text-embedding-004` instead of hashed vectors |
+| `OPENROUTER_API_KEY` | a 0.8 overflow rung. Works, but weaker than Groq on triage |
 | `DATABASE_URL` | Neon instead of local PGlite |
 | `ASCENDANT_LOCAL_DB=1` | use in-process PGlite (**ignored when `DATABASE_URL` is set**) |
+| `ASCENDANT_DASHBOARD_PASSWORD` | shared secret for the dashboard gate. A production build **refuses to compile** without it |
 | `DEMO_MODE=replay` | Run Detail replays stored traces at their original pacing |
 
 Copy `.env.example` (names only, never values) to `.env` and fill in what you have.
+
+**Live inference is opt-in, and deliberately so.** Setting `ASCENDANT_LIVE=1` without
+`GROQ_API_KEY` runs triage on the OpenRouter fallback rung, which is sized for overflow
+rather than for the gate: it satisfies the schema but reasons less well, and it loses two
+of the five demo beats. A key that made the demo *worse* than no key was the wrong way
+round for a credential to fail, so the fixtures stay in charge until asked otherwise.
 
 ### Honest about the offline path
 
@@ -212,7 +226,7 @@ Two things are simulated when no keys are set, and both are labelled as such eve
 
 ```bash
 pnpm install              # pnpm@9.15.4, pinned
-pnpm test                 # 363 tests
+pnpm test                 # 388 tests
 pnpm -r typecheck         # 9 workspace projects
 pnpm --filter @ascendant/web build
 ```
@@ -220,7 +234,7 @@ pnpm --filter @ascendant/web build
 A passing typecheck is **not** sufficient before deploying — webpack resolves module paths differently from `tsc`, and several real bugs here were invisible to both until the code actually ran.
 
 <details>
-<summary><strong>Test coverage</strong> — 363 tests across 18 files</summary>
+<summary><strong>Test coverage</strong> — 388 tests across 21 files</summary>
 
 | Suite | Tests |
 |---|---|
@@ -231,8 +245,9 @@ A passing typecheck is **not** sufficient before deploying — webpack resolves 
 | sandbox: guards + local driver | 33 |
 | workflows: applyDiff + repo client | 16 |
 | connectors: github | 22 |
-| scripts: offline model / embedder | 20 / 6 |
-| web: replay schedule | 10 |
+| scripts: offline model / embedder / demo mode | 20 / 6 / 6 |
+| web: replay schedule / dashboard auth | 10 / 10 |
+| core: triage schema tolerance | 3 |
 
 The db suite runs the four retrieval queries against a real Postgres via PGlite. Their correctness lives in SQL — pgvector's `<=>`, `ts_rank`, the jsonb `?|` overlap — all invisible to `tsc`.
 
@@ -254,6 +269,8 @@ This system reads untrusted text from the internet and then writes code. That is
 
 **Webhooks are verified before parsing**, with `timingSafeEqual` over the raw body. **No auto-merge, ever** — a human approves every merge.
 
+**The dashboard is gated** by a shared secret in `apps/web/src/middleware.ts`, because `/policy` writes the autonomy threshold that `band()` reads on every decision — an open dashboard is a privilege escalation on the pipeline, not just a data leak. Comparison is over fixed-width SHA-256 digests, so it is length-independent in the Edge runtime, where `node:crypto` is unavailable. The two webhook routes are exempt: they authenticate by HMAC over the raw body, which is stronger than a password, and GitHub cannot send an `Authorization` header at all. A production build **fails** when the secret is unset, which is the moment the dashboard stops being localhost-only.
+
 ---
 
 ## Status
@@ -267,10 +284,10 @@ The gate runs end to end. What is built, and what isn't:
 | ✅ 6 Inngest workflows + LLM router | |
 | ✅ 8 agents + 3 sandbox drivers | |
 | ✅ Offline path: seed, runner, replay | no keys required |
+| ✅ Dashboard auth | shared-secret gate; a production build refuses to compile without it |
 | ⬜ GitHub delivery built; Linear + Slack | planned |
 | ⬜ Connectors beyond GitHub | planned |
-| ⬜ 60-issue labelled eval set | harness exists, labels don't |
-| ⬜ Dashboard auth | **do not expose publicly** — `/policy` can lower the autonomy threshold |
+| ⬜ 60-issue labelled eval set | `pnpm eval` is **not written yet** — the 91.7% on Metrics is computed off seeded history, not a labelled set |
 
 ### What this deliberately cannot do
 
