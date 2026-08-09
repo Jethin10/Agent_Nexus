@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 
 const ITEMS = [
+  { href: '/demo', label: 'Live demo', icon: PlayIcon, match: '/demo' },
   { href: '/', label: 'Inbox', icon: InboxIcon, match: '/' },
   { href: '/metrics', label: 'Decisions', icon: LayersIcon, match: '/metrics' },
   { href: '/?review=1', label: 'Evidence', icon: DocumentIcon, match: '/evidence' },
@@ -29,6 +30,10 @@ export function AppNavigation() {
       })}
     </nav>
   )
+}
+
+function PlayIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" /><path d="m8.2 6.8 5 3.2-5 3.2z" /></svg>
 }
 
 function InboxIcon() {
