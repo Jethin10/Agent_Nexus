@@ -1,4 +1,4 @@
-import { TriageOutcome } from '@ascendant/core'
+import { TRIAGE_OUTCOMES } from '@ascendant/core'
 import { db, dashboardMetrics, eventCounts, outcomeCounts, spendToday, triagePrecision } from '@ascendant/db'
 import { DbError, Empty, Panel } from '@/components/bits'
 import { currentOrgId } from '@/lib/org'
@@ -145,7 +145,7 @@ export default async function MetricsPage() {
             ) : (
               <table>
                 <tbody>
-                  {TriageOutcome.options.map((o) => {
+                  {TRIAGE_OUTCOMES.map((o) => {
                     const hit = outcomes.find((c) => c.outcome === o)
                     return (
                       <tr key={o}>

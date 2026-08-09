@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm'
-import { TriageOutcome } from '@ascendant/core'
+import { TRIAGE_OUTCOMES } from '@ascendant/core'
 import { executeRows, type Db } from '../client'
 import { decisions } from '../schema/decisions'
 import { outcomes, type OutcomeRow } from '../schema/outcomes'
@@ -17,7 +17,7 @@ import { tickets } from '../schema/tickets'
  * figure hides exactly the error that matters most.
  */
 
-const OUTCOMES = TriageOutcome.options
+const OUTCOMES = TRIAGE_OUTCOMES
 
 export type OutcomeName = (typeof OUTCOMES)[number]
 export type ConfusionMatrix = Record<OutcomeName, Record<OutcomeName, number>>

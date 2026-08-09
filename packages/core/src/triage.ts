@@ -2,15 +2,29 @@ import { z } from 'zod'
 
 /**
  * Five outcomes, never binary. Four of them are refusals — that is the product.
+ *
+ * The uppercase spelling is canonical — it is what the enum column, the dashboard and
+ * every citation store. Models routinely emit `"reject"` instead, and that is a
+ * formatting slip rather than a reasoning failure: the decision itself is correct and
+ * unambiguous. Spending the single repair retry on capitalisation is what pushed the
+ * whole cascade to `no_capacity` and turned a valid REJECT into an ESCALATE, so the
+ * case is normalised here for the same reason `extractJson` tolerates a fenced block.
+ *
+ * Only case is forgiven. An unrecognised word still fails the enum, because that *is*
+ * a reasoning failure and it should cost a retry.
  */
-export const TriageOutcome = z.enum([
-  'ACCEPT',
-  'REJECT',
-  'MERGE',
-  'DEFER',
-  'ESCALATE',
-])
-export type TriageOutcome = z.infer<typeof TriageOutcome>
+/**
+ * The canonical list. Exported because callers enumerate the outcomes to build
+ * matrices and filters (`metrics.ts` walks it for the confusion matrix); reaching for
+ * `.options` on the schema stopped working once it gained a preprocess wrapper.
+ */
+export const TRIAGE_OUTCOMES = ['ACCEPT', 'REJECT', 'MERGE', 'DEFER', 'ESCALATE'] as const
+
+export const TriageOutcome = z.preprocess(
+  (v) => (typeof v === 'string' ? v.trim().toUpperCase() : v),
+  z.enum(TRIAGE_OUTCOMES),
+)
+export type TriageOutcome = (typeof TRIAGE_OUTCOMES)[number]
 
 export const Citation = z.object({
   kind: z.enum(['issue', 'pr', 'commit', 'doc', 'message', 'meeting', 'ticket']),

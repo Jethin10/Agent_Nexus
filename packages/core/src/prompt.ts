@@ -87,6 +87,35 @@ export const REJECT_COMMENT_GUIDANCE = `Write for the person who filed this. Sta
 decision, name the evidence with its ref, and end with the one-command undo. Every
 autonomous action ships with a way to reverse it.`
 
+/**
+ * The field names the model has to produce, spelled out.
+ *
+ * The task line used to say "JSON matching the schema" without ever including the
+ * schema, which left the shape to be inferred from the system prompt's prose. Strong
+ * models guess right; the free tier returns `{decision, justification}` and fails Zod
+ * on `outcome: Required`. Since the router allows one repair retry, a whole rung was
+ * being spent teaching the model its field names — so a valid key produced a worse
+ * decision than no key at all, which fell back to fixtures.
+ *
+ * Kept in sync by hand with TriageDecisionDraft in triage.ts; the assertion in
+ * prompt.test.ts fails if a field is added there and not described here.
+ */
+export const TRIAGE_OUTPUT_SHAPE = `Use exactly these keys:
+{
+  "outcome": one of ACCEPT | REJECT | MERGE | DEFER | ESCALATE,
+  "confidence": number between 0 and 1,
+  "reasoning": string, 40 to 1200 characters, addressed to the filer,
+  "citations": [ { "kind": one of issue|pr|commit|doc|message|meeting|ticket,
+                   "ref": the exact ref from CANDIDATES,
+                   "quote": verbatim text from that candidate, max 400 chars,
+                   "why": how it bears on the decision, max 200 chars } ],
+  "mergeTargetId": string — required only when outcome is MERGE,
+  "missingInfo": [string] — required only when outcome is DEFER
+}
+Every one of "outcome", "confidence", "reasoning" and "citations" must be present, and
+"citations" must hold at least one entry. Do not wrap the object in markdown fences and
+do not add commentary before or after it.`
+
 function candidateLine(c: Candidate, i: number): string {
   const bits = [
     `[${i + 1}] ref=${c.ref}`,
@@ -173,7 +202,7 @@ export function triageUserMessage(input: TriageUserMessageInput): string {
       },
     )}`,
     `## CANDIDATES — cite by ref, quote verbatim\n${candidateBlock(input.candidates)}`,
-    `## YOUR TASK\nReturn one decision as JSON matching the schema. At least one citation is required, and every ref must appear in the CANDIDATES block above.`,
+    `## YOUR TASK\nReturn one decision as a single JSON object, and nothing else. At least one citation is required, and every ref must appear in the CANDIDATES block above.\n\n${TRIAGE_OUTPUT_SHAPE}`,
   )
 
   return parts.filter(Boolean).join('\n\n')

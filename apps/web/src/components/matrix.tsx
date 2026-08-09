@@ -1,4 +1,4 @@
-import { TriageOutcome } from '@ascendant/core'
+import { TRIAGE_OUTCOMES } from '@ascendant/core'
 import type { ConfusionMatrix } from '@ascendant/db'
 
 /**
@@ -10,7 +10,7 @@ import type { ConfusionMatrix } from '@ascendant/db'
  * error colour. When a judge asks "what if the triage is wrong?", the answer is to point
  * at those cells rather than at the headline.
  */
-const OUTCOMES = TriageOutcome.options
+const OUTCOMES = TRIAGE_OUTCOMES
 
 export function Matrix({ matrix }: { matrix: ConfusionMatrix }) {
   const rowTotal = (predicted: (typeof OUTCOMES)[number]) =>

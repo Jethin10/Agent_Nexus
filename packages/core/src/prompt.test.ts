@@ -3,11 +3,13 @@ import { normalize } from './normalize.js'
 import type { NormalizedEvent, RawEvent } from './event.js'
 import type { Candidate } from './candidates.js'
 import {
+  TRIAGE_OUTPUT_SHAPE,
   TRIAGE_SYSTEM,
   candidateBlock,
   triageUserMessage,
   untrustedBlock,
 } from './prompt.js'
+import { TRIAGE_OUTCOMES, TriageDecisionDraft } from './triage.js'
 
 const FIXED_ID = '00000000-0000-4000-8000-000000000001'
 
@@ -183,5 +185,35 @@ describe('triageUserMessage', () => {
   it('asks for a ref that appears in the candidate block', () => {
     const m = triageUserMessage({ event: ev(), candidates: [cand({ entityId: 'd1' })] })
     expect(m).toMatch(/every ref must appear in the CANDIDATES block/)
+  })
+
+  /**
+   * The prompt used to say "JSON matching the schema" without including the schema.
+   * Strong models inferred the shape; free-tier models returned their own field names
+   * and burned the router's single repair retry on `outcome: Required`, which is how a
+   * configured key ended up producing worse decisions than no key at all.
+   *
+   * This walks the real Zod shape rather than asserting a fixed list, so adding a field
+   * to TriageDecisionDraft and forgetting to describe it fails here instead of in front
+   * of a judge.
+   */
+  it('describes every field the model is required to return', () => {
+    const shape = Object.keys(TriageDecisionDraft.shape)
+    expect(shape.length).toBeGreaterThan(0)
+    for (const field of shape) {
+      expect(TRIAGE_OUTPUT_SHAPE).toContain(`"${field}"`)
+    }
+  })
+
+  it('names all five outcomes and the citation sub-fields in the output shape', () => {
+    for (const o of TRIAGE_OUTCOMES) expect(TRIAGE_OUTPUT_SHAPE).toContain(o)
+    for (const f of ['kind', 'ref', 'quote', 'why']) {
+      expect(TRIAGE_OUTPUT_SHAPE).toContain(`"${f}"`)
+    }
+  })
+
+  it('carries the output shape into the assembled user message', () => {
+    const m = triageUserMessage({ event: ev(), candidates: [cand({ entityId: 'd1' })] })
+    expect(m).toContain(TRIAGE_OUTPUT_SHAPE)
   })
 })

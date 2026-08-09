@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { TriageOutcome } from '@ascendant/core'
+import { TRIAGE_OUTCOMES, TriageOutcome } from '@ascendant/core'
 import { db, inbox, outcomeCounts, readPolicy } from '@ascendant/db'
 import { Confidence, DbError, Empty, OutcomeBadge, Panel, Pill, when } from '@/components/bits'
 import { currentOrgId } from '@/lib/org'
@@ -70,7 +70,7 @@ export default async function InboxPage({ searchParams }: Props) {
               <span className="muted">of {total} refused before any code was written</span>
             </span>
             <span style={{ flex: 1 }} />
-            {TriageOutcome.options.map((o) => {
+            {TRIAGE_OUTCOMES.map((o) => {
               const hit = counts.find((c) => c.outcome === o)
               return (
                 <Link key={o} href={o === filter.data ? '/' : `/?outcome=${o}`}>
