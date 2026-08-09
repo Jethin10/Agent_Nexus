@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Every gate here runs with no provider keys and no external database. The offline
+    # path is a first-class code path (fixture reasoning + PGlite), so CI exercises the
+    # same thing a judge gets on a fresh clone. If any of this needs a secret to pass,
+    # that is the bug.
+    env:
+      CI: 'true'
+      ASCENDANT_LOCAL_DB: '1'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # Must come before the eval: the gate reasons by comparison, so it needs the corpus.
+      - name: Seed demo corpus
+        run: pnpm seed:demo
+
+      - name: Eval
+        run: pnpm eval
+
+      # Proves the documented build works with no secrets set — the deploy guard in
+      # apps/web/next.config.ts must not block an ordinary verification build.
+      - name: Build
+        run: pnpm build
