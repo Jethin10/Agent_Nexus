@@ -178,10 +178,16 @@ const state = new RouterState()
  */
 export async function openRunContext(
   db: Db,
-  opts: { onTrace?: (t: AgentTrace) => void; onModelCall?: (task: string, model: string) => void } = {},
+  opts: {
+    onTrace?: (t: AgentTrace) => void
+    onModelCall?: (task: string, model: string) => void
+    /** Defaults to ORG_ID. `pnpm eval` overrides it to stay out of the demo's org. */
+    orgId?: string
+  } = {},
 ): Promise<RunContext> {
+  const orgId = opts.orgId ?? ORG_ID
   const mode = modelMode()
-  const [policy, spend] = await Promise.all([readPolicy(db, ORG_ID), spendToday(db, ORG_ID)])
+  const [policy, spend] = await Promise.all([readPolicy(db, orgId), spendToday(db, orgId)])
 
   const budget = new Budget(
     {
@@ -226,12 +232,12 @@ export async function openRunContext(
   })
 
   const agent: AgentContext = {
-    orgId: ORG_ID,
+    orgId,
     complete: mode.kind === 'live' ? live : fixture,
     trace: push,
   }
 
-  return { orgId: ORG_ID, db, agent, traces, mode, policy, budget }
+  return { orgId, db, agent, traces, mode, policy, budget }
 }
 
 /**
@@ -242,16 +248,16 @@ export async function openRunContext(
  * (§15.3 layer 3). Without this the demo's autonomous refusals would all silently
  * become ESCALATEs, which looks like a broken gate rather than a missing config row.
  */
-export async function seedPolicy(db: Db): Promise<void> {
-  await writeConfig(db, ORG_ID, 'actors.internal', ['alice', 'bob', 'carol', 'ascendant'], {
+export async function seedPolicy(db: Db, orgId: string = ORG_ID): Promise<void> {
+  await writeConfig(db, orgId, 'actors.internal', ['alice', 'bob', 'carol', 'ascendant'], {
     note: 'Seeded by scripts — internal handles get the full autonomy ceiling.',
     updatedBy: 'seed',
   })
-  await writeConfig(db, ORG_ID, 'actors.knownExternal', ['dave-contractor'], {
+  await writeConfig(db, orgId, 'actors.knownExternal', ['dave-contractor'], {
     note: 'Seeded by scripts — known external contributors.',
     updatedBy: 'seed',
   })
-  await writeConfig(db, ORG_ID, 'actors.bots', ['dependabot', 'renovate', 'github-actions'], {
+  await writeConfig(db, orgId, 'actors.bots', ['dependabot', 'renovate', 'github-actions'], {
     note: 'Seeded by scripts — the bot_author rule REJECTs these before any model call.',
     updatedBy: 'seed',
   })
