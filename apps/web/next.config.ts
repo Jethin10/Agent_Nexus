@@ -21,6 +21,11 @@ if (shouldBlockBuild(process.env)) {
  * change to `@ascendant/core` is picked up by `next dev` immediately.
  */
 const config: NextConfig = {
+  // Keep `next build` from invalidating a running demo server. Next normally writes
+  // both development and production artifacts to `.next`; running the production
+  // build during QA can therefore leave an open review route pointing at chunks that
+  // no longer exist. A separate dev directory makes demo-day verification safe.
+  distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   transpilePackages: [
     '@ascendant/core',
     '@ascendant/db',

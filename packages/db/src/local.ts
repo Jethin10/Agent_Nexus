@@ -1,8 +1,8 @@
 import { readFile, readdir } from 'node:fs/promises'
+import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
-import { vector } from '@electric-sql/pglite-pgvector'
 import { drizzle } from 'drizzle-orm/pglite'
 import { sql } from 'drizzle-orm'
 import { executeRows } from './client'
@@ -29,6 +29,48 @@ import * as schema from './schema/index'
 /** Relative imports here stay extensionless, matching the rest of packages/db (D1, D16). */
 const HERE = dirname(fileURLToPath(import.meta.url))
 
+/**
+ * Resolve pgvector's archive as a real file URL instead of allowing Next/Webpack to
+ * turn `new URL('./vector.tar.gz', import.meta.url)` into `/_next/static/media/...`.
+ * PGlite runs on the server and reads this bundle from disk; an HTTP asset URL can
+ * never work there. The candidates cover direct package execution, workspace tests,
+ * and the filtered `apps/web` dev process.
+ */
+function vectorBundleUrl(): URL {
+  let root = process.cwd()
+  while (!existsSync(join(root, 'pnpm-workspace.yaml'))) {
+    const parent = dirname(root)
+    if (parent === root) throw new Error('Unable to locate the pnpm workspace root')
+    root = parent
+  }
+
+  const store = join(root, 'node_modules', '.pnpm')
+  const packageDir = readdirSync(store).find((name) =>
+    name.startsWith('@electric-sql+pglite-pgvector@'),
+  )
+  if (!packageDir) throw new Error('Unable to resolve the local pgvector extension bundle')
+
+  const bundle = join(
+    store,
+    packageDir,
+    'node_modules',
+    '@electric-sql',
+    'pglite-pgvector',
+    'dist',
+    'vector.tar.gz',
+  )
+  if (!existsSync(bundle)) throw new Error(`Local pgvector bundle is missing: ${bundle}`)
+  return pathToFileURL(bundle)
+}
+
+const localVector = {
+  name: 'vector',
+  setup: async (_pg: unknown, emscriptenOpts: unknown) => ({
+    emscriptenOpts,
+    bundlePath: vectorBundleUrl(),
+  }),
+}
+
 /** `packages/db/migrations` — resolved from this file so cwd never matters. */
 export const MIGRATIONS_DIR = join(HERE, '..', 'migrations')
 
@@ -48,7 +90,7 @@ export interface LocalDbHandle {
 export async function makeLocalDb(dataDir?: string): Promise<LocalDbHandle> {
   const client = await PGlite.create({
     ...(dataDir ? { dataDir } : {}),
-    extensions: { vector },
+    extensions: { vector: localVector },
   })
 
   // Mirrors makeDb() in client.ts exactly: same schema, same casing. Anything that

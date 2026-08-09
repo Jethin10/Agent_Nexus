@@ -14,6 +14,7 @@ import { ensureDb } from '@/lib/local-db'
 import { Timeline } from '@/components/timeline'
 import { ReplayTimeline } from '@/components/replay-timeline'
 import { TicketFor } from '@/components/ticket'
+import { EventReviewActions } from '@/components/event-review-actions'
 
 /**
  * Run Detail — §11.1's second view, and where the "agents argue with each other" claim
@@ -154,6 +155,9 @@ export default async function EventPage({ params }: Props) {
                 </div>
               ))
             )}
+
+            <div className="event-review-divider" />
+            <EventReviewActions />
           </Panel>
         ) : (
           <Panel title="The decision">
