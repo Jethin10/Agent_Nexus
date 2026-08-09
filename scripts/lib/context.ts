@@ -91,10 +91,17 @@ export async function resetScenarios(
   sourceRefs: readonly string[],
 ): Promise<number> {
   if (sourceRefs.length === 0) return 0
-  const list = sourceRefs.map((r) => `'${r.replace(/'/g, "''")}'`).join(', ')
+  /**
+   * Placeholders rather than interpolated literals. Today every ref comes from
+   * `fixtures.ts`, so hand-escaping quotes would work — but `sourceRefs` is a plain
+   * string list, and the moment one comes from a CLI argument or a fetched issue the
+   * escaping is the only thing standing between a title and arbitrary SQL. Passing them
+   * as parameters means the values are never parsed as SQL at all.
+   */
+  const placeholders = sourceRefs.map((_, i) => `$${i + 2}`).join(', ')
   const res = await handle.client.query<{ id: string }>(
-    `delete from events where org_id = $1 and source_ref in (${list}) returning id`,
-    [orgId],
+    `delete from events where org_id = $1 and source_ref in (${placeholders}) returning id`,
+    [orgId, ...sourceRefs],
   )
   return res.rows.length
 }
