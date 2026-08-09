@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import { Suspense } from 'react'
 import { demoMode } from '@/lib/org'
+import { AppNavigation } from '@/components/app-navigation'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Ascendant',
-  description: 'Decides what to build. Then builds it.',
+  title: 'Ascendant — Triage inbox',
+  description: 'Decide what to build. Then build it.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -16,20 +17,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <div className="shell">
           <aside className="sidebar">
-            <div className="brand">Ascendant</div>
-            <p className="tagline">Decides what to build. Then builds it.</p>
-            <nav className="nav">
-              <Link href="/">Inbox</Link>
-              <Link href="/metrics">Metrics</Link>
-              <Link href="/policy">Policy</Link>
-            </nav>
-            {mode === 'replay' && (
-              <p className="small dim" style={{ marginTop: 22 }}>
-                <span className="pill flag">replay</span>
-                <br />
-                Serving recorded runs at their original timing.
-              </p>
-            )}
+            <div className="brand-lockup">
+              <span className="brand-mark" aria-hidden="true">A</span>
+              <span className="brand">Ascendant</span>
+            </div>
+            <Suspense fallback={<div className="nav nav-loading" aria-hidden="true" />}>
+              <AppNavigation />
+            </Suspense>
+            <div className="sidebar-footer">
+              <span className="shortcut-hint">⌘ K</span>
+              <div className="workspace-avatar">A</div>
+              <div>
+                <strong>Demo workspace</strong>
+                <span>{mode === 'replay' ? 'Replay mode' : 'Local environment'}</span>
+              </div>
+            </div>
           </aside>
           <main className="main">{children}</main>
         </div>

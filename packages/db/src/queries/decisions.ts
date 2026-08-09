@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, ilike, or, sql } from 'drizzle-orm'
 import type { Citation, TriageOutcome } from '@ascendant/core'
 import type { Db } from '../client'
 import { decisions, type DecisionRow } from '../schema/decisions'
@@ -139,12 +139,21 @@ export async function decisionForEvent(
   return rows[0]
 }
 
-/** The Inbox: every event with its decision, newest first, filterable by outcome. */
+/** The Inbox: every event with its decision, filtered and ordered before pagination. */
 export async function inbox(
   db: Db,
   orgId: string,
-  opts: { outcome?: TriageOutcome; limit?: number; needsReview?: boolean } = {},
+  opts: {
+    outcome?: TriageOutcome
+    limit?: number
+    needsReview?: boolean
+    query?: string
+    order?: 'newest' | 'oldest'
+  } = {},
 ) {
+  const query = opts.query?.trim()
+  const pattern = query ? `%${query}%` : undefined
+
   return db
     .select({
       eventId: events.id,
@@ -177,9 +186,18 @@ export async function inbox(
         eq(events.orgId, orgId),
         opts.outcome ? eq(decisions.outcome, opts.outcome) : undefined,
         opts.needsReview ? eq(decisions.needsReview, true) : undefined,
+        pattern
+          ? or(
+              ilike(events.title, pattern),
+              ilike(events.sourceRef, pattern),
+              ilike(events.actorHandle, pattern),
+              ilike(decisions.reasoning, pattern),
+              sql`${decisions.outcome}::text ilike ${pattern}`,
+            )
+          : undefined,
       ),
     )
-    .orderBy(desc(events.createdAt))
+    .orderBy(opts.order === 'oldest' ? asc(events.createdAt) : desc(events.createdAt))
     .limit(opts.limit ?? 50)
 }
 
