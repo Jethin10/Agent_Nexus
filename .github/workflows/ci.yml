@@ -24,15 +24,18 @@ jobs:
       ASCENDANT_LOCAL_DB: '1'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          # 22, not 20: GitHub is deprecating the Node 20 action runtime, and the
+          # runner already force-upgrades v4 actions past it. package.json only
+          # requires >=20, so this raises what CI proves rather than what the repo needs.
+          node-version: 22
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
