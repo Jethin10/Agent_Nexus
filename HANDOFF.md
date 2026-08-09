@@ -54,8 +54,8 @@ Nothing is cut, only sequenced. Steps 1-3 alone are a defensible submission;
 | 5 | Planner/Coder/Reviewer/QA + E2B sandbox | **done** (8 agents, 3 drivers) |
 | 6 | Delivery: PR + Linear + Slack | GitHub PR **done**; Linear/Slack todo |
 | 7 | Remaining connectors (Linear/Gmail/GCal/Drive/Granola) | todo |
-| 8 | Learning loop + eval set + metrics | queries + views **done**; `pnpm eval` todo |
-| 9 | Security layers 1-4 hardening | all 4 layers **done**; no dashboard auth |
+| 8 | Learning loop + eval set + metrics | queries + views **done**; `pnpm eval` **written and passing 5/5** — the set needs growing to 60 |
+| 9 | Security layers 1-4 hardening | all 4 layers **done**; dashboard auth **done** (B8 closed) |
 | 10 | Seed fixtures + recorded demo + offline fallbacks | seed + runner + replay **done**; recording todo |
 
 **The system now runs.** Until 2026-07-31 nothing in this repo had ever executed:
@@ -88,36 +88,41 @@ projects, `pnpm test` = **363 passing**, and `next build` compiles all 7 routes.
 
 ## 3. Next step, concretely
 
-**A Groq key, then the eval set (§17 step 8).**
+**Grow the eval set, then Linear + Slack delivery (§17 steps 8, 6).**
 
-The gate runs end to end, but its *reasoning* is still a fixture unless a key is
-set. Everything around the reasoning — the six policy rules, all four retrieval
-sources, citation validation, the confidence recomputation, banding, the ESCALATE
-overrides — is real either way. Only the model's text is canned, and it is
-labelled `fixture:*` everywhere it surfaces so it can never be mistaken for
-inference.
+Live inference is no longer unexercised. `pnpm demo graphql` has run against real
+OpenRouter and reported `model: live inference via OpenRouter` — the cascade in
+`packages/router` picks up whichever key is present, so `OPENROUTER_API_KEY` alone
+is enough and `GROQ_API_KEY` is not required. Without any key the reasoning falls
+back to a fixture, tagged `fixture:*` everywhere it surfaces. Everything *around*
+the reasoning — six policy rules, four retrieval sources, citation validation,
+confidence recomputation, banding, the ESCALATE overrides — is real either way.
 
-1. **`GROQ_API_KEY=...` then `pnpm demo`.** Nothing else changes: `openRunContext`
-   in `scripts/lib/context.ts` switches `agent.complete` from the fixture to the
-   real router and the run is otherwise identical. This is the one remaining
-   unexercised path in the gate.
-2. **`GEMINI_API_KEY=...` then `pnpm seed:demo`.** Swaps the hashed pseudo-vectors
+1. **Grow the eval set to 60 issues** (step 8, §11.2). `scripts/eval.ts` is
+   written, runs offline and passes 5/5, scoring accuracy, autonomous precision and
+   false refusals; CI gates on it. What it does not yet have is scale — five
+   labelled scenarios, one per outcome, against the 60 §11.2 asks for. Adding a
+   case means one entry in `scripts/lib/fixtures.ts` with an `expect` label.
+   **Run the full set the night before, not the morning of** — ~1,500 requests
+   against a 1,000 RPD Groq ceiling. Offline it is free and instant.
+2. **Steps 6-7**: Linear and Slack delivery, then the remaining connectors. This
+   is now the largest visible gap. `deliver.ts` already builds `slackSummary`
+   (line 267) and reads `ticket.linearIdentifier` (108, 164), but
+   `packages/connectors` exports only GitHub, so both artifacts are constructed
+   and then dropped. The GitHub half is done (`workflows/github-write.ts`).
+3. **`GEMINI_API_KEY=...` then `pnpm seed:demo`.** Swaps the hashed pseudo-vectors
    for real `text-embedding-004`. Retrieval sources 1 and 4 already work offline,
    but on a lexical proxy rather than a semantic space (D27).
-3. **`scripts/eval.ts`** (step 8, §11.2): 60 hand-labelled real GitHub issues →
-   confusion matrix → `evals/results-<date>.json`. `triagePrecision()` and the
-   `Matrix` component already read it and currently report **91.7%** off the
-   seeded history; the hand-labelled set itself does not exist.
-   **Run this the night before, not the morning of** — ~1,500 Groq requests
-   against a 1,000 RPD ceiling.
 4. **Provision Neon** (B1) when a deployment is actually needed. It is no longer
    a blocker for local work: `ASCENDANT_LOCAL_DB=1` opens a real Postgres
    in-process (D24), and the four retrieval queries are now covered by tests that
    run against it in CI.
-5. **Steps 6-7**: Linear and Slack delivery, then the remaining connectors. The
-   GitHub half of delivery is done (`workflows/github-write.ts`).
-6. **Dashboard auth (B8)** before this is exposed anywhere. Anyone who can reach
-   `/policy` can lower the autonomy threshold.
+5. **Record the demo** (B10) and **fill in team name/members on deck slide 1**
+   (B6). The second is a two-minute fix that currently fails submission.
+
+The 91.7% on Metrics still comes from seeded history rather than labels — that
+number and the eval's accuracy are computed off different inputs, so do not
+present them as the same measurement.
 
 ### The wiring, end to end
 
@@ -660,13 +665,13 @@ line. It happened twice, from a tool the agent had every reason to trust.
 | # | Item | Blocks | Notes |
 |---|---|---|---|
 | B1 | ~~No Neon database~~ | — | **downgraded** — `ASCENDANT_LOCAL_DB=1` opens a real Postgres in-process (D24) and the 4 retrieval queries now run in CI. Neon is still needed to *deploy*, not to work. |
-| B2 | No Groq key | **the gate's reasoning only** | everything around it is real; the model's text is a fixture labelled `fixture:*` (D29). One env var switches it. |
+| B2 | ~~No Groq key~~ | — | **downgraded** — the gate has run on live inference via `OPENROUTER_API_KEY`; the router cascade takes whichever key is present, so Groq specifically is not required. With no key at all the reasoning is a fixture labelled `fixture:*` (D29) and everything around it is still real. |
 | B3 | No Vercel / Inngest project | live webhooks + durable runs | see the org-repo trap below. `pnpm demo` drives the same functions without them. |
 | B4 | ~~Docker not installed~~ | — | **closed** — PGlite replaces it and needs no daemon (D24) |
 | B5 | ~~No `.env.example`~~ | — | **closed** — written, names only |
 | B6 | Team name + members blank on submission deck slide 1 | submission | |
 | B7 | No Gemini key | *semantic* embeddings | sources 1 and 4 work offline on hashed vectors — a lexical proxy, not a learned space (D27) |
-| B8 | Dashboard has **no auth** | exposing it beyond a private demo URL | anyone reaching `/policy` can lower the autonomy threshold. First thing to fix. |
+| B8 | ~~Dashboard has no auth~~ | — | **closed** — HTTP Basic over `ASCENDANT_DASHBOARD_PASSWORD` in `apps/web/src/middleware.ts`; a deploy without it fails the build. Unset still falls open for local `pnpm dev`, which is deliberate: see `src/lib/deploy-guard.ts`. |
 | B9 | No E2B key and no Actions workflow file | QA against a real repo | `localDriver` gives a real test signal offline via `ASCENDANT_ALLOW_LOCAL_SANDBOX=1`; `qa` still returns `inconclusive` rather than a green tick it did not earn |
 | B10 | No recorded 4-minute screen capture | §16.3 insurance item 1 | the only one of the four still missing: seed, `DEMO_MODE=replay` and the offline DB are all done |
 

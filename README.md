@@ -226,28 +226,42 @@ Two things are simulated when no keys are set, and both are labelled as such eve
 
 ```bash
 pnpm install              # pnpm@9.15.4, pinned
-pnpm test                 # 388 tests
+pnpm test                 # 401 tests
 pnpm -r typecheck         # 9 workspace projects
-pnpm --filter @ascendant/web build
+pnpm eval                 # score the gate against labelled scenarios
+pnpm build
 ```
+
+`pnpm eval` puts every labelled scenario through the real gate and scores the outcome
+against its label, reporting accuracy, autonomous precision and — separately — **false
+refusals**, which is ACCEPT-labelled work the gate turned away. That last number is
+broken out on purpose: nobody ever sees a REJECT that should have been an ACCEPT, which
+is what makes it worse than the reverse. It exits non-zero on any miss, so CI gates on it.
+
+This is a labelled smoke test, not the 60-issue set §11.2 calls for — five scenarios, one
+per outcome. The harness and the scoring are real; the set needs to grow.
+
+CI runs typecheck, tests, seed, eval and build on every push, all with **no secrets
+configured**, because the offline path is a real code path rather than a fallback. If
+anything in that pipeline needs a key to pass, that is a bug.
 
 A passing typecheck is **not** sufficient before deploying — webpack resolves module paths differently from `tsc`, and several real bugs here were invisible to both until the code actually ran.
 
 <details>
-<summary><strong>Test coverage</strong> — 388 tests across 21 files</summary>
+<summary><strong>Test coverage</strong> — 401 tests across 23 files</summary>
 
 | Suite | Tests |
 |---|---|
 | core: policy / confidence / candidates / normalize / prompt / diff / extract | 24 / 20 / 17 / 22 / 19 / 29 / 10 |
+| core: triage schema tolerance | 6 |
 | db: retrieval against real Postgres | 18 |
 | router: cascade, repair, budget, guard | 34 |
 | agents: triage / pipeline / delivery | 18 / 19 / 26 |
 | sandbox: guards + local driver | 33 |
 | workflows: applyDiff + repo client | 16 |
 | connectors: github | 22 |
-| scripts: offline model / embedder / demo mode | 20 / 6 / 6 |
-| web: replay schedule / dashboard auth | 10 / 10 |
-| core: triage schema tolerance | 3 |
+| scripts: offline model / embedder / demo mode / scenario reset | 20 / 6 / 6 / 5 |
+| web: replay schedule / dashboard auth / deploy guard | 10 / 10 / 8 |
 
 The db suite runs the four retrieval queries against a real Postgres via PGlite. Their correctness lives in SQL — pgvector's `<=>`, `ts_rank`, the jsonb `?|` overlap — all invisible to `tsc`.
 
@@ -284,10 +298,12 @@ The gate runs end to end. What is built, and what isn't:
 | ✅ 6 Inngest workflows + LLM router | |
 | ✅ 8 agents + 3 sandbox drivers | |
 | ✅ Offline path: seed, runner, replay | no keys required |
-| ✅ Dashboard auth | shared-secret gate; a production build refuses to compile without it |
+| ✅ Dashboard auth | shared-secret gate; a real deploy refuses to build without it |
+| ✅ `pnpm eval` on 5 labelled scenarios | accuracy, autonomous precision, false refusals — 5/5, no keys needed |
+| ✅ CI on every push | typecheck, 401 tests, seed, eval, build — all with zero secrets |
 | ⬜ GitHub delivery built; Linear + Slack | planned |
 | ⬜ Connectors beyond GitHub | planned |
-| ⬜ 60-issue labelled eval set | `pnpm eval` is **not written yet** — the 91.7% on Metrics is computed off seeded history, not a labelled set |
+| ⬜ Scale the eval set to 60 issues | the harness is written and runs; it needs 55 more labelled issues. Until then the honest headline is 5/5, and the 91.7% on Metrics is computed off seeded history rather than labels |
 
 ### What this deliberately cannot do
 
