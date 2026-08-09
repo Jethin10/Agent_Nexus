@@ -17,6 +17,7 @@ import { openRun } from './runtime.js'
 import { applyDiff, repoClient, repoFromEnv } from './repo.js'
 import { githubWriter } from './github-write.js'
 import { ticketById, updateTicket } from './tickets.js'
+import { linearFromEnv, notifyLinear, notifySlack, slackFromEnv } from './notify.js'
 
 /**
  * Function 5 of 5 — `deliver`. The pipeline's output is never a silent commit: it is
@@ -162,6 +163,13 @@ export const deliverFn = inngest.createFunction(
         diff: diffRow.content,
         decisionId: decision.id,
         eventRef: ticket.linearIdentifier ?? null,
+        /**
+         * Read here rather than in the notify step because Inngest serializes step
+         * returns: re-reading the ticket there would see a row a concurrent retry may
+         * have already updated, and post a second Slack message instead of editing.
+         */
+        linearId: ticket.linearId ?? null,
+        slackTs: ticket.slackTs ?? null,
       }
     })
 
@@ -239,6 +247,60 @@ export const deliverFn = inngest.createFunction(
       })
 
       return { number: pr.number, url: pr.url, isDraft: pr.isDraft }
+    })
+
+    /**
+     * The notification and the board update. Both are best-effort by design: the PR is
+     * the deliverable (§8.1), and a Slack workspace that never installed the app must
+     * not fail a run that already produced a reviewable PR. Failures are traced, not
+     * thrown — which is why this is not wrapped in a retrying step that could undo the
+     * push above.
+     */
+    await step.run('notify', async () => {
+      const slack = await notifySlack(slackFromEnv(), {
+        text: built.slackSummary,
+        ts: built.slackTs,
+        prUrl: pushed.url,
+        decisionId: built.decisionId,
+      })
+
+      if (slack.status === 'ok') {
+        const detail = slack.detail as { channel?: string; ts?: string }
+        // Persist the timestamp so the next stage edits this message rather than
+        // posting a second one.
+        if (detail.ts) {
+          await updateTicket(db(), orgId, ticketId, {
+            slackChannel: detail.channel ?? null,
+            slackTs: detail.ts,
+          })
+        }
+      }
+
+      const linear = await notifyLinear(linearFromEnv(), {
+        issueId: built.linearId,
+        stage: 'In Review',
+        comment: `${pushed.isDraft ? 'Draft PR' : 'PR'} #${pushed.number} is open: ${pushed.url}`,
+      })
+
+      // One trace row covering both, so a run that shipped but could not notify is
+      // visible in the timeline instead of looking like a clean delivery.
+      const degraded = [
+        ...(slack.status === 'failed' ? [`Slack: ${slack.reason}`] : []),
+        ...(linear.status === 'failed' ? [`Linear: ${linear.reason}`] : []),
+      ]
+
+      await trace(db(), {
+        orgId,
+        ticketId,
+        runId: run.id,
+        agent: 'delivery',
+        phase: 'notified',
+        summary:
+          degraded.length > 0
+            ? `PR #${pushed.number} shipped, but ${degraded.length} notification${degraded.length > 1 ? 's' : ''} failed.`
+            : `Notified: Slack ${slack.status}, Linear ${linear.status}.`,
+        detail: { slack, linear, ...(degraded.length > 0 ? { degraded } : {}) },
+      })
     })
 
     /**

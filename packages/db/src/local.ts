@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
@@ -63,26 +63,36 @@ export async function makeLocalDb(dataDir?: string): Promise<LocalDbHandle> {
 }
 
 /**
- * Applies `migrations/0000_noisy_northstar.sql` statement by statement.
+ * Applies every `migrations/*.sql` in filename order, statement by statement.
  *
  * drizzle-kit's own migrator is not used because it expects a journal table and a
- * node-postgres connection; this is one file against a fresh database. The file
- * hand-prepends `CREATE EXTENSION IF NOT EXISTS vector` (D2) and that must remain the
- * first statement executed — the vector columns and HNSW indexes fail without it.
+ * node-postgres connection; this is a fresh database each time. `0000` hand-prepends
+ * `CREATE EXTENSION IF NOT EXISTS vector` (D2) and that must remain the first statement
+ * executed — the vector columns and HNSW indexes fail without it. Lexicographic order
+ * over the zero-padded drizzle-kit prefixes gives that for free.
+ *
+ * Reading the directory rather than naming one file is deliberate: a hardcoded filename
+ * means a second migration is silently ignored locally while passing in CI, and the
+ * schema drift only surfaces as a missing column at runtime.
  */
 export async function applyMigrations(db: LocalDb, dir = MIGRATIONS_DIR): Promise<number> {
-  const file = join(dir, '0000_noisy_northstar.sql')
-  const raw = await readFile(file, 'utf8')
+  const files = (await readdir(dir)).filter((f) => f.endsWith('.sql')).sort()
+  if (files.length === 0) throw new Error(`applyMigrations: no .sql files in ${dir}`)
 
-  const statements = raw
-    .split('--> statement-breakpoint')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
+  let applied = 0
+  for (const file of files) {
+    const raw = await readFile(join(dir, file), 'utf8')
+    const statements = raw
+      .split('--> statement-breakpoint')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
 
-  for (const statement of statements) {
-    await db.execute(sql.raw(statement))
+    for (const statement of statements) {
+      await db.execute(sql.raw(statement))
+    }
+    applied += statements.length
   }
-  return statements.length
+  return applied
 }
 
 /** True when a `vector` column can be created — proves the extension actually loaded. */

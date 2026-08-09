@@ -8,6 +8,13 @@
       "when": 1785447568736,
       "tag": "0000_noisy_northstar",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786284000000,
+      "tag": "0001_slack_thread",
+      "breakpoints": true
     }
   ]
 }

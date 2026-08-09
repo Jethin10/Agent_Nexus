@@ -24,6 +24,8 @@ export interface TicketPatch {
   status?: TicketRow['status']
   linearId?: string | null
   linearIdentifier?: string | null
+  slackChannel?: string | null
+  slackTs?: string | null
   branch?: string | null
   prNumber?: number | null
   prUrl?: string | null

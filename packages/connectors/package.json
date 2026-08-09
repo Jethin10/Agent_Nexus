@@ -7,7 +7,9 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./github": "./src/github/index.ts"
+    "./github": "./src/github/index.ts",
+    "./slack": "./src/slack/index.ts",
+    "./linear": "./src/linear/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

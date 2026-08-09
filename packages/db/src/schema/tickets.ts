@@ -42,6 +42,14 @@ export const tickets = pgTable(
     linearId: text('linear_id'),
     linearIdentifier: text('linear_identifier'),
 
+    /**
+     * Slack message timestamp, which is also its id. §8.3 updates one threaded message
+     * in place via `chat.update` rather than posting per stage, so this is what makes
+     * the second notification an edit instead of a new line in the channel.
+     */
+    slackChannel: text('slack_channel'),
+    slackTs: text('slack_ts'),
+
     /** Branch is always ascendant/<linear-id>-<slug>; never main (§8.1). */
     branch: text('branch'),
     prNumber: integer('pr_number'),
