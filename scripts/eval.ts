@@ -1,6 +1,9 @@
 import { decide, normalize, TRIAGE_OUTCOMES, type Candidate, type TriageOutcome } from '@ascendant/core'
 import { toNormalized } from '@ascendant/workflows'
 import {
+  decisionForEvent,
+  embeddings,
+  insertDecision,
   insertEvent,
   loadPolicyContext,
   retrieveCandidates,
@@ -8,7 +11,7 @@ import {
 } from '@ascendant/db'
 import { triage } from '@ascendant/agents'
 import { NoCapacityError } from '@ascendant/router'
-import { INJECTION_SCENARIOS, SCENARIOS, ORG, type Scenario } from './lib/fixtures.ts'
+import { CORPUS, INJECTION_SCENARIOS, SCENARIOS, type Scenario } from './lib/fixtures.ts'
 import { makeEmbedder } from './lib/embed.ts'
 import { openLocalDb, openRunContext, resetScenarios, seedPolicy } from './lib/context.ts'
 
@@ -37,6 +40,18 @@ import { openLocalDb, openRunContext, resetScenarios, seedPolicy } from './lib/c
 
 const ARGS = process.argv.slice(2)
 const JSON_OUT = ARGS.includes('--json')
+
+/**
+ * The eval's own org. Separate from the demo's `org_demo` so scoring never reads or
+ * writes the rows the dashboard shows — see the note in `main`.
+ */
+const EVAL_ORG = 'org_eval'
+
+/**
+ * The issue `policy-closed-ref-regression` cites. Closed by a seeded REJECT so the
+ * `already_closed_ref` rule has something to find — see `seedClosedRefPrecondition`.
+ */
+const CLOSED_REF = 'acme/api#447'
 
 const C = {
   dim: (s: string) => `\x1b[2m${s}\x1b[0m`,
@@ -75,7 +90,7 @@ async function scoreOne(
   injection = false,
 ): Promise<Row> {
   const startedAt = Date.now()
-  const event = normalize(s.event, {
+  const event = normalize({ ...s.event, orgId: EVAL_ORG }, {
     internalActors: ['alice', 'bob', 'carol', 'ascendant'],
     knownExternalActors: ['dave-contractor'],
   })
@@ -88,7 +103,7 @@ async function scoreOne(
   let candidates: readonly Candidate[] = []
   if (!verdict.decided) {
     const vec = await makeEmbedder().embed(`${stored.title}\n\n${stored.body}`)
-    const r = await retrieveCandidates(db, { orgId: ORG, event: stored, vec, dim: 768 })
+    const r = await retrieveCandidates(db, { orgId: EVAL_ORG, event: stored, vec, dim: 768 })
     candidates = r.candidates
   }
 
@@ -145,6 +160,91 @@ function confusion(rows: readonly Row[]): Record<string, Record<string, number>>
   return m
 }
 
+/**
+ * Copies the corpus into the eval's org: the events the gate reasons *against*, plus
+ * their embeddings so vector retrieval has something to find.
+ *
+ * Idempotent, so repeat runs are cheap — `insertEvent` upserts on
+ * (org, source, sourceRef) and the embeddings insert has a matching unique index. Only
+ * the corpus is copied, not the demo's seeded decision history: the eval scores the gate
+ * on evidence, and prior decisions would let it recognise answers instead of reasoning
+ * to them.
+ */
+async function seedEvalCorpus(db: Db): Promise<void> {
+  const embedder = makeEmbedder()
+  for (const raw of CORPUS) {
+    const n = normalize({ ...raw, orgId: EVAL_ORG }, {
+      internalActors: ['alice', 'bob', 'carol', 'ascendant'],
+      knownExternalActors: ['dave-contractor'],
+    })
+    const res = await insertEvent(db, n)
+    const stored = res.row
+
+    const text = `${stored.title}\n\n${stored.body}`.slice(0, 8_000)
+    await db
+      .insert(embeddings)
+      .values({
+        orgId: EVAL_ORG,
+        entityKind: 'event',
+        entityId: stored.id,
+        content: text,
+        chunk: 0,
+        model: embedder.model,
+        vec768: await embedder.embed(text),
+      })
+      .onConflictDoNothing({
+        target: [embeddings.orgId, embeddings.entityKind, embeddings.entityId, embeddings.chunk],
+      })
+  }
+
+  await seedClosedRefPrecondition(db)
+}
+
+/**
+ * The one piece of decision history the eval needs: a REJECT closing `acme/api#447`.
+ *
+ * `already_closed_ref` derives "closed" from the decisions and tickets tables, so
+ * without this the `policy-closed-ref-regression` case has nothing to detect and the
+ * gate ACCEPTs a report it should route to a human. Seeding the *precondition* rather
+ * than the answer — the rule still has to find it, and the eval still has to score the
+ * outcome the gate actually produces.
+ */
+async function seedClosedRefPrecondition(db: Db): Promise<void> {
+  const target = CORPUS.find((r) => r.sourceRef === CLOSED_REF)
+  if (!target) throw new Error(`eval: ${CLOSED_REF} is missing from CORPUS`)
+
+  const n = normalize({ ...target, orgId: EVAL_ORG }, {
+    internalActors: ['alice', 'bob', 'carol', 'ascendant'],
+    knownExternalActors: ['dave-contractor'],
+  })
+  const { row } = await insertEvent(db, n)
+
+  // Idempotent: a second run would otherwise stack duplicate decisions on one event.
+  if (await decisionForEvent(db, EVAL_ORG, row.id)) return
+
+  await insertDecision(db, {
+    orgId: EVAL_ORG,
+    eventId: row.id,
+    outcome: 'REJECT',
+    confidence: 0.81,
+    reasoning:
+      'Documentation drift rather than a defect in the API itself. The parameter was removed ' +
+      'intentionally and the current validation error is correct behaviour.',
+    citations: [
+      {
+        kind: 'issue',
+        ref: CLOSED_REF,
+        quote: 'It was removed in v2.2 and now returns a validation error',
+        why: 'The reporter confirms the removal was intentional.',
+      },
+    ],
+    policyHits: [],
+    autonomous: true,
+    needsReview: false,
+    modelUsed: 'fixture:eval-precondition',
+  })
+}
+
 async function main() {
   const { db, handle, migrated } = await openLocalDb()
   if (migrated) {
@@ -154,14 +254,24 @@ async function main() {
     out()
     process.exit(1)
   }
-  await seedPolicy(db)
 
-  // Labels only mean something against a clean slate: a prior decision on the same
-  // (org, source, sourceRef) short-circuits the gate, and the run would score a replay.
+  /**
+   * The eval runs in its own org, against its own copy of the corpus.
+   *
+   * Sharing `ORG` with the demo cost both directions: the scenarios the eval scores are
+   * the same five the demo decides, so a prior demo decision on the same
+   * (org, source, sourceRef) short-circuits the gate and the eval scores a replay —
+   * while clearing those decisions to prevent it wiped the dashboard the demo had just
+   * populated. An eval that mutates the thing it measures is not measuring it.
+   */
+  await seedPolicy(db, EVAL_ORG)
+  await seedEvalCorpus(db)
+
   const ALL = [...SCENARIOS, ...INJECTION_SCENARIOS]
-  await resetScenarios(handle, ORG, ALL.map((s) => s.event.sourceRef))
+  // Still reset within the eval org: a previous eval run leaves its own decisions behind.
+  await resetScenarios(handle, EVAL_ORG, ALL.map((s) => s.event.sourceRef))
 
-  const ctx = await openRunContext(db)
+  const ctx = await openRunContext(db, { orgId: EVAL_ORG })
   if (!JSON_OUT) {
     out()
     out(`  ${C.bold('Ascendant — eval')}  ${C.dim(ctx.mode.label)}`)
@@ -169,18 +279,28 @@ async function main() {
   }
 
   const rows: Row[] = []
-  for (const s of ALL) {
-    const isInjection = INJECTION_SCENARIOS.includes(s)
-    const row = await scoreOne(db, ctx, s, isInjection)
-    rows.push(row)
-    if (!JSON_OUT) {
-      const mark = row.correct ? C.green('PASS') : C.red('FAIL')
-      const got = row.correct ? C.dim(row.actual.padEnd(8)) : C.red(row.actual.padEnd(8))
-      out(
-        `  ${mark}  ${row.id.padEnd(12)} expected ${C.bold(row.expected.padEnd(8))} got ${got}` +
-          `  ${C.dim(`conf ${row.confidence.toFixed(2)}  ${row.ms}ms`)}`,
-      )
+  try {
+    for (const s of ALL) {
+      const isInjection = INJECTION_SCENARIOS.includes(s)
+      const row = await scoreOne(db, ctx, s, isInjection)
+      rows.push(row)
+      if (!JSON_OUT) {
+        const mark = row.correct ? C.green('PASS') : C.red('FAIL')
+        const got = row.correct ? C.dim(row.actual.padEnd(8)) : C.red(row.actual.padEnd(8))
+        out(
+          `  ${mark}  ${row.id.padEnd(12)} expected ${C.bold(row.expected.padEnd(8))} got ${got}` +
+            `  ${C.dim(`conf ${row.confidence.toFixed(2)}  ${row.ms}ms`)}`,
+        )
+      }
     }
+  } finally {
+    /**
+     * Scoring ingests each scenario to give retrieval something to read but never writes a
+     * decision, so these events would linger as undecided rows. They live in EVAL_ORG and
+     * the dashboard reads the demo org, so nothing user-visible depends on this — it keeps
+     * repeat runs from accumulating. `finally` because a thrown scenario leaves the same debris.
+     */
+    await resetScenarios(handle, EVAL_ORG, ALL.map((s) => s.event.sourceRef))
   }
 
   const correct = rows.filter((r) => r.correct).length
