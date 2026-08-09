@@ -97,7 +97,19 @@ export const MODELS: readonly ModelSpec[] = [
   {
     id: 'openrouter/free',
     provider: 'openrouter',
-    model: 'meta-llama/llama-3.3-70b-instruct:free',
+    /**
+     * OpenRouter retires `:free` slugs without notice — `meta-llama/llama-3.3-70b-
+     * instruct:free` now 404s with "use the paid slug instead", which the router
+     * correctly reported as no capacity while looking like a broken key. Verified
+     * against `GET /api/v1/models` and a live JSON-mode call on 2026-08-09.
+     *
+     * `response_format: json_object` support is the binding requirement, not context or
+     * capability: the triage schema is enforced through it, and several free models
+     * accept the field and then emit prose anyway (gpt-oss-20b returns empty, the nano
+     * tier narrates the request back). Re-check this slug if the gate starts escalating
+     * with `no_capacity` on a key that authenticates.
+     */
+    model: 'nvidia/nemotron-3-super-120b-a12b:free',
     /** 50 RPD until $10 lifetime spend, then 1,000. Assume the worse case (§13.5). */
     rpd: 50,
     rpm: 20,

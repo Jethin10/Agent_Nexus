@@ -16,7 +16,7 @@ import { triage } from '@ascendant/agents'
 import { NoCapacityError } from '@ascendant/router'
 import { SCENARIOS, ORG, type Scenario } from './lib/fixtures.ts'
 import { makeEmbedder } from './lib/embed.ts'
-import { openLocalDb, openRunContext, seedPolicy } from './lib/context.ts'
+import { openLocalDb, openRunContext, resetScenarios, seedPolicy } from './lib/context.ts'
 
 /**
  * Runs the five §16.2 demo scenarios through the real Triage Gate and narrates each
@@ -32,10 +32,16 @@ import { openLocalDb, openRunContext, seedPolicy } from './lib/context.ts'
  *   pnpm demo                 all five scenarios
  *   pnpm demo graphql         one scenario by id
  *   pnpm demo --verbose       include every trace line and the candidate set
+ *   pnpm demo --keep          keep prior decisions instead of re-deciding
+ *
+ * Re-deciding is the default because a demo that prints a cached verdict shows none of
+ * the reasoning — the stage-by-stage narration is the entire point of watching it run.
+ * `--keep` restores the idempotent behaviour, which is what production actually does.
  */
 
 const ARGS = process.argv.slice(2)
 const VERBOSE = ARGS.includes('--verbose') || ARGS.includes('-v')
+const KEEP = ARGS.includes('--keep')
 const ONLY = ARGS.filter((a) => !a.startsWith('-'))
 
 const C = {
@@ -291,7 +297,7 @@ async function runScenario(db: Db, s: Scenario, n: number, total: number): Promi
 }
 
 async function main() {
-  const { db, migrated } = await openLocalDb()
+  const { db, handle, migrated } = await openLocalDb()
   if (migrated) {
     // A fresh database has no corpus, so the gate would have nothing to compare
     // against and every refusal would collapse to ESCALATE for lack of evidence.
@@ -318,6 +324,20 @@ async function main() {
     out(C.red(`  No scenario matched: ${ONLY.join(', ')}`))
     out(C.dim(`  Available: ${SCENARIOS.map((s) => s.id).join(', ')}`))
     process.exit(1)
+  }
+
+  // Clear only the chosen scenarios' own events; the corpus they are compared against
+  // stays. Done after `chosen` resolves so `pnpm demo graphql` re-decides that one
+  // scenario and leaves the other four's decisions intact.
+  if (!KEEP) {
+    const cleared = await resetScenarios(
+      handle,
+      ORG,
+      chosen.map((s) => s.event.sourceRef),
+    )
+    if (cleared > 0) {
+      out(`  ${C.dim('reset')}     ${cleared} prior decision${cleared === 1 ? '' : 's'} cleared — the gate decides again (--keep to preserve)`)
+    }
   }
 
   const results: boolean[] = []
