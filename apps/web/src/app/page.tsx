@@ -26,7 +26,7 @@ export default async function InboxPage({ searchParams }: Props) {
   const orgId = currentOrgId()
   const outcome = TriageOutcome.safeParse(params.outcome)
   const needsReview = params.review === '1'
-  const query = params.q?.trim().toLowerCase() ?? ''
+  const query = params.q?.trim() ?? ''
 
   let rows: InboxRow[] = []
   let error: unknown
@@ -36,19 +36,15 @@ export default async function InboxPage({ searchParams }: Props) {
     rows = await inbox(db(), orgId, {
       ...(outcome.success ? { outcome: outcome.data } : {}),
       ...(needsReview ? { needsReview: true } : {}),
+      ...(query ? { query } : {}),
+      order: params.order === 'oldest' ? 'oldest' : 'newest',
       limit: 100,
     })
   } catch (err) {
     error = err
   }
 
-  const filtered = rows.filter((row) => {
-    if (!query) return true
-    return [row.title, row.sourceRef, row.actorHandle, row.reasoning, row.outcome]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(query))
-  })
-  const visibleRows = params.order === 'oldest' ? [...filtered].reverse() : filtered
+  const visibleRows = rows
   const selected =
     visibleRows.find((row) => row.eventId === params.selected) ??
     visibleRows.find((row) => row.needsReview || row.outcome === 'ESCALATE') ??
@@ -96,10 +92,10 @@ export default async function InboxPage({ searchParams }: Props) {
       </header>
 
       <div className="inbox-body">
-        <main className="signal-region">
+        <section className="signal-region" aria-labelledby="triage-inbox-title">
           <div className="signal-heading">
             <div>
-              <h1>Triage inbox</h1>
+              <h1 id="triage-inbox-title">Triage inbox</h1>
               <p>Signals that need a product decision</p>
             </div>
             {(outcome.success || needsReview || query) && (
@@ -151,20 +147,24 @@ export default async function InboxPage({ searchParams }: Props) {
               ))
             )}
           </div>
-        </main>
+        </section>
 
         <aside
           className={`decision-inspector${params.selected ? ' is-open' : ''}`}
           aria-label="Selected decision"
         >
-          {selected ? <DecisionInspector row={selected} /> : <EmptyInspector />}
+          {selected ? (
+            <DecisionInspector row={selected} closeHref={hrefWith(params, { selected: null })} />
+          ) : (
+            <EmptyInspector />
+          )}
         </aside>
       </div>
     </div>
   )
 }
 
-function DecisionInspector({ row }: { row: InboxRow }) {
+function DecisionInspector({ row, closeHref }: { row: InboxRow; closeHref: string }) {
   const confidence = row.confidence === null ? null : Math.round(Number(row.confidence) * 100)
   const citations = row.citations ?? []
   const policyHits = row.policyHits ?? []
@@ -173,7 +173,7 @@ function DecisionInspector({ row }: { row: InboxRow }) {
     <div className="inspector-inner">
       <div className="inspector-topline">
         <span>{sourceLabel(row.source)} · {row.sourceRef}</span>
-        <Link href="/" aria-label="Close decision inspector">
+        <Link href={closeHref} aria-label="Close decision inspector">
           <CloseIcon />
         </Link>
       </div>
