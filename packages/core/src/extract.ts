@@ -26,7 +26,19 @@ const STACK_NODE = /^\s*at\s+.+$/gm
 const STACK_PY = /^\s*File\s+"[^"]+",\s+line\s+\d+.*$/gm
 
 const URL = /https?:\/\/[^\s<>()\[\]"']+/g
-const ISSUE_HASH = /(?<![\w/])#(\d{1,7})\b/g
+/**
+ * `#412` and GitHub's cross-repo `owner/repo#412`, which is how people actually
+ * cite an issue from another repo. Both yield the short `#412` form so matching
+ * stays uniform; the qualified prefix is dropped because callers compare by
+ * suffix against a fully-qualified `sourceRef`.
+ *
+ * URL fragments (`https://example.com/page#123`) must not match, and a bare
+ * lookbehind is not enough once the `owner/repo` prefix is optional — the prefix
+ * would simply match the URL's own last path segment. So URLs are stripped from
+ * the text before this runs (see `extract`), and the lookbehind then only has to
+ * reject `v2#3`-style word-char adjacency.
+ */
+const ISSUE_HASH = /(?<![\w/:])(?:[\w.-]+\/[\w.-]+)?#(\d{1,7})\b/g
 const ISSUE_KEY = /\b([A-Z][A-Z0-9]{1,9}-\d{1,6})\b/g
 
 /**
@@ -54,14 +66,20 @@ export function extract(title: string, body: string): Extracted {
     ...(text.match(STACK_PY) ?? []),
   ]).map((s) => s.trim())
 
+  /**
+   * Issue refs are matched against text with URLs removed, so a fragment like
+   * `…/page#123` cannot be read as a ref. Replaced with a space rather than
+   * deleted, so a ref immediately after a URL still has its boundary.
+   */
+  const deUrled = text.replace(URL, ' ')
+
   return {
     symbols,
     versions,
     stackFrames,
     urls: uniqCap(text.match(URL) ?? []),
     issueRefs: uniqCap([
-      ...[...text.matchAll(ISSUE_HASH)].map((m) => `#${m[1]}`),
-      ...[...text.matchAll(ISSUE_KEY)].map((m) => m[1] ?? ''),
+      ...[...deUrled.matchAll(ISSUE_HASH)].map((m) => `#${m[1]}`),      ...[...text.matchAll(ISSUE_KEY)].map((m) => m[1] ?? ''),
     ]),
   }
 }

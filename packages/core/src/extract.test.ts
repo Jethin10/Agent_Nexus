@@ -71,6 +71,24 @@ describe('extract', () => {
     expect(only.issueRefs).not.toContain('#123')
   })
 
+  /**
+   * `owner/repo#N` is how a ref from another repo is normally written, and the
+   * `already_closed_ref` regression guard only fires if it extracts.
+   */
+  it('extracts a cross-repo ref to its short form', () => {
+    const only = extract('', 'this is acme/api#447 again')
+    expect(only.issueRefs).toContain('#447')
+  })
+
+  it('still rejects a fragment on a path-shaped url', () => {
+    const only = extract('', 'see https://example.com/acme/api#447 for context')
+    expect(only.issueRefs).toEqual([])
+  })
+
+  it('does not read a bare hash after a word char as a ref', () => {
+    expect(extract('', 'released as v2#3 internally').issueRefs).toEqual([])
+  })
+
   it('dedupes and caps each field at 40', () => {
     const urls = Array.from({ length: 60 }, (_, i) => `https://example.com/${i}`)
     const only = extract('', urls.join('\n'))
