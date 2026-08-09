@@ -3,11 +3,10 @@
  * the demo, but it means "how would this work for two companies?" has a one-sentence
  * answer rather than a rewrite.
  *
- * There is no auth in front of the dashboard yet, so this resolves to a single
- * configured org. That is a real gap, stated plainly rather than hidden: anyone who
- * can reach the deployed URL can read the Inbox and change the autonomy thresholds in
- * the Policy view. Before this is exposed to anything but a demo, the Policy mutations
- * need a session check.
+ * The dashboard sits behind a shared-secret gate (`src/middleware.ts`), which is a gate
+ * rather than an identity system: there is still no user model, so this resolves to a
+ * single configured org rather than to whoever is signed in. Multi-tenancy would need a
+ * real session before this could read the org from a request.
  */
 export function currentOrgId(): string {
   return process.env.ASCENDANT_ORG_ID ?? 'org_demo'

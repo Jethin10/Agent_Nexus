@@ -1,6 +1,32 @@
 import type { NextConfig } from 'next'
 
 /**
+ * Deployment guard for the dashboard password (B8), paired with `src/middleware.ts`.
+ *
+ * The middleware lets an unset password through, so that local `pnpm dev` does not sit
+ * behind a prompt. That default is only safe while "unset" means localhost, so the build
+ * is the place to enforce it: a production build is the moment the dashboard becomes
+ * reachable by someone other than whoever started it.
+ *
+ * `next build` for local inspection is exempted via ASCENDANT_ALLOW_OPEN_DASHBOARD=1,
+ * which has to be typed deliberately and shows up in shell history.
+ */
+if (
+  process.env.NODE_ENV === 'production' &&
+  process.env.npm_lifecycle_event === 'build' &&
+  !process.env.ASCENDANT_DASHBOARD_PASSWORD &&
+  process.env.ASCENDANT_ALLOW_OPEN_DASHBOARD !== '1'
+) {
+  throw new Error(
+    'ASCENDANT_DASHBOARD_PASSWORD is not set.\n\n' +
+      'The Policy view writes the autonomy threshold that gates autonomous action, so an\n' +
+      'unauthenticated deploy is a privilege escalation on the whole pipeline.\n\n' +
+      'Set it in the deployment environment, or pass ASCENDANT_ALLOW_OPEN_DASHBOARD=1 to\n' +
+      'build without auth on purpose.',
+  )
+}
+
+/**
  * The workspace packages are consumed as TypeScript source, not as built JS — see
  * `main: ./src/index.ts` in each package.json. `transpilePackages` is what lets Next
  * compile them in place, which keeps the monorepo free of a build step and means a

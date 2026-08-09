@@ -13,10 +13,11 @@ import { ensureDb } from '@/lib/local-db'
  * Writes are clamped server-side. A threshold outside [0,1] would make `band()`
  * nonsensical, and the number arrives from a form input rather than from code.
  *
- * SECURITY GAP, stated rather than hidden: there is no session check here. Anyone who
- * can reach the deployed URL can lower the autonomy threshold, which is a privilege
- * escalation on the whole pipeline. This is acceptable for a demo on a private URL and
- * is the first thing that must change before it is exposed further.
+ * Reaching this action at all requires the shared-secret gate in `src/middleware.ts`,
+ * which covers Server Action POSTs because they are ordinary requests to a matched path.
+ * That closes the escalation where anyone who could load the URL could lower the
+ * autonomy threshold. What it is not is per-user authorization: there is one secret and
+ * one org, so `updatedBy` below records 'dashboard' rather than a person.
  */
 const NUMERIC: Record<string, { key: string; min: number; max: number; label: string }> = {
   autonomous: { key: CONFIG_KEYS.autonomous, min: 0, max: 1, label: 'autonomy threshold' },
