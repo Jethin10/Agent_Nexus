@@ -7,7 +7,7 @@ made that a future agent could accidentally revert, or a blocker opens or closes
 Append to the Decisions log — never rewrite history there. Keep the Status board
 and Next step accurate; everything else is reference.
 
-Last updated: 2026-07-31 · after §17 steps 2-5, and the first end-to-end run
+Last updated: 2026-08-12 · production integration cutover is code-complete; credentials remain external
 
 ---
 
@@ -52,11 +52,11 @@ Nothing is cut, only sequenced. Steps 1-3 alone are a defensible submission;
 | 3 | Dashboard Inbox + Run Detail | **done** (Inbox, Run Detail, Metrics, Policy) |
 | 4 | Inngest workflows + LLM router | **done** (6 functions, router, budget) |
 | 5 | Planner/Coder/Reviewer/QA + E2B sandbox | **done** (8 agents, 3 drivers) |
-| 6 | Delivery: PR + Linear + Slack | GitHub PR **done**; Linear/Slack todo |
-| 7 | Remaining connectors (Linear/Gmail/GCal/Drive/Granola) | todo |
+| 6 | Delivery: PR + Linear + Slack | **done** — real API paths, signed Slack actions, GitHub App tokens |
+| 7 | Remaining inbound connectors (Gmail/GCal/Drive/Granola) | todo |
 | 8 | Learning loop + eval set + metrics | queries + views **done**; `pnpm eval` **written and passing 5/5** — the set needs growing to 60 |
 | 9 | Security layers 1-4 hardening | all 4 layers **done**; dashboard auth **done** (B8 closed) |
-| 10 | Seed fixtures + recorded demo + offline fallbacks | seed + runner + replay **done**; recording todo |
+| 10 | Offline test fixtures and replay fallback | **done**; retired from the product navigation |
 
 **The system now runs.** Until 2026-07-31 nothing in this repo had ever executed:
 no database existed, so the four retrieval queries had never touched Postgres, and
@@ -88,41 +88,30 @@ projects, `pnpm test` = **363 passing**, and `next build` compiles all 7 routes.
 
 ## 3. Next step, concretely
 
-**Grow the eval set, then Linear + Slack delivery (§17 steps 8, 6).**
+**Provision credentials, deploy, then execute one bounded real issue end to end.**
 
-Live inference is no longer unexercised. `pnpm demo graphql` has run against real
-OpenRouter and reported `model: live inference via OpenRouter` — the cascade in
-`packages/router` picks up whichever key is present, so `OPENROUTER_API_KEY` alone
-is enough and `GROQ_API_KEY` is not required. Without any key the reasoning falls
-back to a fixture, tagged `fixture:*` everywhere it surfaces. Everything *around*
-the reasoning — six policy rules, four retrieval sources, citation validation,
-confidence recomputation, banding, the ESCALATE overrides — is real either way.
+The production code paths are now present for GitHub App authentication, signed GitHub
+and Slack webhooks, durable Inngest execution, Neon/Postgres, live model routing, E2B or
+Actions QA, Linear state updates, Slack review messages, and GitHub PR publication. The
+fixture walkthrough has been removed from navigation; `/demo` redirects to the
+credential-safe `/integrations` runtime status page. Fixture scripts remain for tests
+and offline development only.
 
-1. **Grow the eval set to 60 issues** (step 8, §11.2). `scripts/eval.ts` is
-   written, runs offline and passes 5/5, scoring accuracy, autonomous precision and
-   false refusals; CI gates on it. What it does not yet have is scale — five
-   labelled scenarios, one per outcome, against the 60 §11.2 asks for. Adding a
-   case means one entry in `scripts/lib/fixtures.ts` with an `expect` label.
-   **Run the full set the night before, not the morning of** — ~1,500 requests
-   against a 1,000 RPD Groq ceiling. Offline it is free and instant.
-2. **Steps 6-7**: Linear and Slack delivery, then the remaining connectors. This
-   is now the largest visible gap. `deliver.ts` already builds `slackSummary`
-   (line 267) and reads `ticket.linearIdentifier` (108, 164), but
-   `packages/connectors` exports only GitHub, so both artifacts are constructed
-   and then dropped. The GitHub half is done (`workflows/github-write.ts`).
-3. **`GEMINI_API_KEY=...` then `pnpm seed:demo`.** Swaps the hashed pseudo-vectors
-   for real `text-embedding-004`. Retrieval sources 1 and 4 already work offline,
-   but on a lexical proxy rather than a semantic space (D27).
-4. **Provision Neon** (B1) when a deployment is actually needed. It is no longer
-   a blocker for local work: `ASCENDANT_LOCAL_DB=1` opens a real Postgres
-   in-process (D24), and the four retrieval queries are now covered by tests that
-   run against it in CI.
-5. **Record the demo** (B10) and **fill in team name/members on deck slide 1**
-   (B6). The second is a two-minute fix that currently fails submission.
-
-The 91.7% on Metrics still comes from seeded history rather than labels — that
-number and the eval's accuracy are computed off different inputs, so do not
-present them as the same measurement.
+1. **Provision the external services.** The latest read-only check found live model
+   access but no repository/webhook, database, Slack, Linear, sandbox, Inngest, or
+   dashboard credentials in this checkout. No code can manufacture those credentials.
+   Fill the names in `.env.example` in Vercel or `.env.local`, then run
+   `pnpm integrations:check --strict` until all required connections are ready.
+2. **Deploy and register callbacks.** Apply `pnpm db:push`, deploy the web app, then
+   configure GitHub at `/api/webhooks/github`, Slack at `/api/webhooks/slack`, and
+   Inngest at `/api/inngest`. Production GitHub access should use
+   `GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY_BASE64`; `GITHUB_TOKEN` is local-only.
+3. **Run one real bounded issue.** Verify webhook receipt, persisted decision, source
+   comment/label, Slack and Linear updates, sandbox QA, and the final reviewable PR.
+   Never use an important repository for the first rehearsal and never auto-merge.
+4. **Grow the eval set to 60 issues** (step 8, §11.2). The harness still has only the
+   smaller smoke set. Metrics seeded history and eval accuracy are different inputs;
+   do not present them as the same measurement.
 
 ### The wiring, end to end
 
@@ -590,6 +579,22 @@ scenario matched the first branch), and a shared exception is not enough to just
 MERGE (the ACCEPT scenario reports the same `TypeError` from the same file for a
 *different* trigger, and merging those buries real work under a closed issue — the
 expensive triage mistake).
+
+**D30 — production GitHub access prefers App installation tokens; PATs are local-only.**
+`repoFromEnv()` is async because it signs a nine-minute RS256 app JWT, resolves the
+configured repository installation, and mints a repository-scoped token for each
+workflow invocation. The token is never persisted, logged, sent to an agent, or placed
+inside an E2B sandbox. If only one of `GITHUB_APP_ID` and
+`GITHUB_APP_PRIVATE_KEY_BASE64` is set, configuration fails closed instead of silently
+falling back to `GITHUB_TOKEN`. Source-response authentication failures are traced as
+degradation after the immutable decision is stored; they do not erase or re-run triage.
+
+**D31 — fixtures remain test infrastructure, not a product surface.**
+The `/demo` route redirects to `/integrations`, the walkthrough component was removed,
+and primary documentation now starts from signed webhooks plus production readiness.
+`seed:demo`, `demo`, `demo:build`, and timeline replay remain because they provide
+hermetic tests, CI coverage, and outage recovery. Do not reconnect them to primary
+navigation or claim their fixture reasoning is a live server result.
 
 ---
 
