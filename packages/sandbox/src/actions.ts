@@ -101,6 +101,17 @@ export function actionsDriver(opts: ActionsDriverOptions): SandboxDriver {
       const budget = Math.max(0, h.deadlineAt - Date.now())
       const timeoutMs = Math.min(execOpts.timeoutMs ?? budget, budget)
 
+      const encodedFiles = Buffer.from(JSON.stringify(s.files), 'utf8').toString('base64')
+      if (encodedFiles.length > 60_000) {
+        return {
+          exitCode: 1,
+          stdout: '',
+          stderr: `actions payload is ${encodedFiles.length} bytes; refusing to truncate the 60000-byte workflow input`,
+          timedOut: false,
+          durationMs: Date.now() - startedAt,
+        }
+      }
+
       const dispatch = await fetcher(
         `${API}/repos/${opts.owner}/${opts.repo}/actions/workflows/${opts.workflow}/dispatches`,
         {
@@ -112,7 +123,7 @@ export function actionsDriver(opts: ActionsDriverOptions): SandboxDriver {
               handle: h.id,
               // Inputs are capped at 64KB by GitHub, so files travel base64-encoded
               // and the workflow decodes them into the checkout.
-              files: Buffer.from(JSON.stringify(s.files), 'utf8').toString('base64').slice(0, 60_000),
+              files: encodedFiles,
               command: JSON.stringify(cmd),
               cwd: execOpts.cwd ?? '.',
             },

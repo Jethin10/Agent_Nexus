@@ -232,6 +232,7 @@ describe('retrieval — against real Postgres (PGlite + pgvector)', () => {
           kind: 'pr',
           title: 'Fix session id crash on expired token',
           body: 'Guards the null branch in `apps/api/src/session.ts`.',
+          raw: { pull_request: { merged: true } },
         }),
       )
       await insertEvent(db, pr)
@@ -245,6 +246,21 @@ describe('retrieval — against real Postgres (PGlite + pgvector)', () => {
       expect(hit.source).toBe('git')
       expect(hit.kind).toBe('pr')
       expect(hit.score).toBeGreaterThan(0)
+    })
+
+    it('does not treat an open or closed-unmerged PR as shipped work', async () => {
+      const pr = normalize(
+        rawEvent({
+          sourceRef: 'acme/api!89',
+          kind: 'pr',
+          title: 'Attempted session fix',
+          body: 'Touches `apps/api/src/session.ts` but was not merged.',
+          raw: { pull_request: { merged: false, merged_at: null } },
+        }),
+      )
+      await insertEvent(db, pr)
+      const got = await gitActivity(db, { orgId: ORG, symbols: ['apps/api/src/session.ts'] })
+      expect(got.map((c) => c.ref)).not.toContain('acme/api!89')
     })
 
     it('respects the recency window — an old PR is not recent activity', async () => {

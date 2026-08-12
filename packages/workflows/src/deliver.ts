@@ -294,13 +294,18 @@ export const deliverFn = inngest.createFunction(
         ticketId,
         runId: run.id,
         agent: 'delivery',
-        phase: 'notified',
+        phase: degraded.length > 0 ? 'notification_retry' : 'notified',
         summary:
           degraded.length > 0
-            ? `PR #${pushed.number} shipped, but ${degraded.length} notification${degraded.length > 1 ? 's' : ''} failed.`
+            ? `PR #${pushed.number} shipped; retrying ${degraded.length} failed notification${degraded.length > 1 ? 's' : ''}.`
             : `Notified: Slack ${slack.status}, Linear ${linear.status}.`,
         detail: { slack, linear, ...(degraded.length > 0 ? { degraded } : {}) },
       })
+      if (degraded.length > 0) {
+        // This step is after the memoized open-pr step. Throwing retries notification
+        // delivery without creating another commit or PR.
+        throw new Error(degraded.join('; '))
+      }
     })
 
     /**

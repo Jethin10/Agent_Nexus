@@ -16,6 +16,8 @@ export interface SelectOptions {
   GITHUB_OWNER?: string | undefined
   GITHUB_REPO?: string | undefined
   ACTIONS_WORKFLOW?: string | undefined
+  /** Experimental fallback; disabled unless a repository-installed workflow is proven. */
+  ALLOW_ACTIONS?: boolean
   ALLOW_LOCAL?: boolean
 }
 
@@ -27,7 +29,7 @@ export function selectDriver(opts: SelectOptions): SandboxDriver {
     })
   }
 
-  if (opts.GITHUB_TOKEN && opts.GITHUB_OWNER && opts.GITHUB_REPO) {
+  if (opts.ALLOW_ACTIONS && opts.GITHUB_TOKEN && opts.GITHUB_OWNER && opts.GITHUB_REPO) {
     return actionsDriver({
       token: opts.GITHUB_TOKEN,
       owner: opts.GITHUB_OWNER,
@@ -81,7 +83,7 @@ export interface RunTestsInput {
  */
 export async function runTests(input: RunTestsInput): Promise<TestRunResult> {
   const spec = { ...DEFAULT_SPEC, ...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}) }
-  const install = input.installCommand ?? ['pnpm', 'install', '--frozen-lockfile', '--offline']
+  const install = input.installCommand ?? ['pnpm', 'install', '--no-frozen-lockfile', '--ignore-scripts']
 
   const baseline = await inSandbox(input.driver, spec, async (h) => {
     await input.driver.writeFiles(h, input.baselineFiles)

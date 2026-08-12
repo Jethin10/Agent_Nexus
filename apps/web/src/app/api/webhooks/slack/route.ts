@@ -5,9 +5,9 @@ import {
   slackBasestring,
   slackTimestampFresh,
 } from '@ascendant/connectors'
-import { inngest } from '@ascendant/workflows'
 import { currentOrgId } from '@/lib/org'
 import { ensureDb } from '@/lib/local-db'
+import { slackReviewerAllowed } from '@/lib/slack-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -37,6 +37,11 @@ export async function POST(req: Request): Promise<Response> {
     return json({ error: 'Slack payload is not JSON' }, 400)
   }
 
+  const slackUserId = payload.user?.id
+  if (!slackReviewerAllowed(slackUserId, process.env.SLACK_REVIEWER_IDS)) {
+    return json({ error: 'Slack user is not authorized to resolve Ascendant decisions' }, 403)
+  }
+
   const action = payload.actions?.[0]
   const outcome = outcomeForAction(action?.action_id)
   const decisionId = action?.value
@@ -62,27 +67,12 @@ export async function POST(req: Request): Promise<Response> {
     surface: 'slack',
   })
 
-  let workflowNotified = false
-  if (result.status !== 'already_reviewed') {
-    try {
-      await inngest.send({
-        name: 'human/resolved',
-        data: { orgId, eventId: event.id, decisionId, outcome, actor, reason },
-      })
-      workflowNotified = true
-    } catch {
-      // The durable audit row is already stored. Slack receives an honest pending state.
-    }
-  }
-
   return json({
     response_type: 'ephemeral',
     replace_original: false,
     text: result.status === 'already_reviewed'
       ? `Ascendant already recorded this event as ${result.outcome}.`
-      : workflowNotified
-        ? `Ascendant recorded ${result.outcome} from @${actor} and resumed the workflow.`
-        : `Ascendant recorded ${result.outcome} from @${actor}; workflow continuation is pending.`,
+      : `Ascendant recorded ${result.outcome} from @${actor} and queued durable workflow continuation.`,
   }, 200)
 }
 

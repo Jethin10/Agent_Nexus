@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { TriageOutcome } from '@ascendant/core'
 import { applyHumanReview, db } from '@ascendant/db'
-import { inngest } from '@ascendant/workflows'
 import { ensureDb } from '@/lib/local-db'
 import { currentOrgId } from '@/lib/org'
 
@@ -26,7 +25,7 @@ export async function resolveReview(
   }
 
   const orgId = currentOrgId()
-  const actor = 'dashboard-reviewer'
+  const actor = process.env.ASCENDANT_OPERATOR_NAME ?? 'local-dashboard-operator'
 
   try {
     await ensureDb()
@@ -40,26 +39,6 @@ export async function resolveReview(
       surface: 'dashboard',
     })
 
-    let workflowNotified = false
-    if (result.status !== 'already_reviewed') {
-      try {
-        await inngest.send({
-          name: 'human/resolved',
-          data: {
-            orgId,
-            eventId,
-            decisionId,
-            outcome: parsedOutcome.data,
-            actor,
-            ...(reason ? { reason } : {}),
-          },
-        })
-        workflowNotified = true
-      } catch {
-        // The DB row is authoritative. A local development server may have no Inngest connection.
-      }
-    }
-
     revalidatePath(`/events/${eventId}`)
     revalidatePath('/')
     revalidatePath('/metrics')
@@ -69,9 +48,7 @@ export async function resolveReview(
     }
     return {
       ok: true,
-      message: workflowNotified
-        ? `Review persisted and the workflow was notified: ${result.outcome}.`
-        : `Review persisted: ${result.outcome}. Workflow continuation is pending because Inngest is not connected.`,
+      message: `Review persisted and queued for durable workflow continuation: ${result.outcome}.`,
     }
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'The review could not be recorded.' }

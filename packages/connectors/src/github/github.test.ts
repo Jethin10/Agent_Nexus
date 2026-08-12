@@ -178,10 +178,17 @@ describe('parse: pull requests', () => {
     expect(e?.threadKey).toBe('acme/api!88')
   })
 
-  it('accepts ready_for_review, ignores synchronize and closed', async () => {
+  it('accepts ready_for_review and merged closures, but ignores synchronize and unmerged closures', async () => {
     expect(await gh.parse({ ...prPayload, action: 'ready_for_review' }, ctx)).toHaveLength(1)
     expect(await gh.parse({ ...prPayload, action: 'synchronize' }, ctx)).toHaveLength(0)
     expect(await gh.parse({ ...prPayload, action: 'closed' }, ctx)).toHaveLength(0)
+    const [merged] = await gh.parse({
+      ...prPayload,
+      action: 'closed',
+      pull_request: { ...prPayload.pull_request, merged: true, merged_at: '2026-07-03T09:00:00Z' },
+    }, ctx)
+    expect(merged?.sourceRef).toBe('acme/api!88:merged')
+    expect(merged?.threadKey).toBe('acme/api!88')
   })
 })
 

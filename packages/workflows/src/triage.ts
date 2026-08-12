@@ -27,6 +27,7 @@ import {
   slackFromEnv,
 } from './notify.js'
 import { updateTicket } from './tickets.js'
+import { embedEvent, embedText, eventEmbeddingContent } from './embeddings.js'
 
 /**
  * Function 2 of 5 — `triage`. The thesis, wired up.
@@ -129,9 +130,38 @@ export const triageFn = inngest.createFunction(
       let candidates: readonly Candidate[] = []
       let degraded: string[] = []
       if (!verdict.decided) {
-        const r = await retrieveCandidates(ctx.db, { orgId, event: normalized })
+        let queryVector: number[] | undefined
+        if (process.env.GEMINI_API_KEY) {
+          try {
+            // Store the event as a retrieval document, but search with a query vector.
+            // Google tunes those task types differently; mixing them weakens ranking.
+            await embedEvent(ctx.db, row, { apiKey: process.env.GEMINI_API_KEY })
+            queryVector = await embedText({
+              apiKey: process.env.GEMINI_API_KEY,
+              text: eventEmbeddingContent(row),
+              task: 'RETRIEVAL_QUERY',
+            })
+          } catch (err) {
+            degraded.push('embedding:provider')
+            await trace(ctx.db, {
+              orgId,
+              runId: run.id,
+              agent: 'triage',
+              phase: 'embedding_degraded',
+              summary: `Semantic retrieval unavailable: ${err instanceof Error ? err.message : String(err)}`,
+            })
+          }
+        } else {
+          degraded.push('embedding:not_configured')
+        }
+
+        const r = await retrieveCandidates(ctx.db, {
+          orgId,
+          event: normalized,
+          ...(queryVector ? { vec: queryVector, dim: 768 as const } : {}),
+        })
+        degraded.push(...r.degraded)
         candidates = r.candidates
-        degraded = r.degraded
         await trace(ctx.db, {
           orgId,
           runId: run.id,
@@ -260,12 +290,14 @@ export const triageFn = inngest.createFunction(
     // erasing the judgement or crashing the pipeline.
     await step.run('respond-at-source', async () => {
       const failures: string[] = []
+      let githubFailed = false
       let repo: Awaited<ReturnType<typeof repoFromEnv>>
       try {
         repo = await repoFromEnv()
       } catch (err) {
         // The immutable decision is already persisted. Authentication failure degrades
         // the source response; it must not erase or repeatedly re-run the judgement.
+        githubFailed = true
         failures.push(`GitHub authentication: ${err instanceof Error ? err.message : String(err)}`)
       }
       if (repo && decided.source === 'github' && isConfiguredIssueRef(decided.sourceRef, repo)) {
@@ -279,6 +311,7 @@ export const triageFn = inngest.createFunction(
           }
           await writer.label(decided.sourceRef, [`ascendant:${decided.outcome.toLowerCase()}`])
         } catch (err) {
+          githubFailed = true
           failures.push(`GitHub: ${err instanceof Error ? err.message : String(err)}`)
         }
       }
@@ -301,6 +334,11 @@ export const triageFn = inngest.createFunction(
           : 'Source response completed or was not configured for this event.',
         detail: { failures },
       })
+      if (githubFailed) {
+        // GitHub comments are content-idempotent and labels/closes are idempotent, so
+        // Inngest can safely retry this step after an API outage.
+        throw new Error(failures.filter((failure) => failure.startsWith('GitHub')).join('; '))
+      }
     })
 
     // ── ACCEPT is the only path into the work pipeline ─────────────────────────

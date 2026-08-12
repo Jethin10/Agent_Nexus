@@ -20,13 +20,14 @@
     "demo": "tsx scripts/demo.ts",
     "demo:build": "tsx scripts/demo-build.ts",
     "integrations:check": "tsx scripts/integrations-check.ts",
+    "corpus:sync": "tsx scripts/sync-github-corpus.ts",
     "eval": "tsx scripts/eval.ts"
   },
   "devDependencies": {
     "@types/node": "22.10.7",
     "cross-env": "7.0.3",
     "tsx": "4.19.2",
-    "typescript": "5.7.3",
+    "typescript": "5.8.3",
     "vitest": "3.0.4"
   },
   "pnpm": {
@@ -36,7 +37,9 @@
       "allowedVersions": {}
     },
     "overrides": {
-      "drizzle-orm": "0.38.4"
+      "drizzle-orm": "0.45.2",
+      "postcss": "8.5.18",
+      "sharp": "0.35.0"
     }
   }
 }

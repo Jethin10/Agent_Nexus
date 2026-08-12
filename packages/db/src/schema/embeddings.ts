@@ -13,7 +13,7 @@ import {
 /**
  * Retrieval source #1 (§9): vector neighbours, top-8 by cosine distance.
  *
- * Two vector columns on purpose. `vec768` is Gemini text-embedding-004; `vec384` is
+ * Two vector columns on purpose. `vec768` is the configured Gemini retrieval space; `vec384` is
  * the local bge-small-en fallback. Different models put different meanings in the
  * same coordinates, so a 768 distance and a 384 distance are not comparable — giving
  * them separate columns makes mixing them a type error instead of a silent

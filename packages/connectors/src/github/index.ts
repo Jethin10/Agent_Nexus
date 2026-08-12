@@ -18,7 +18,7 @@ import {
  * idempotency check (§7.3) makes a cosmetic edit a no-op anyway.
  */
 const ISSUE_ACTIONS = new Set(['opened', 'reopened', 'edited'])
-const PR_ACTIONS = new Set(['opened', 'reopened', 'ready_for_review'])
+const PR_ACTIONS = new Set(['opened', 'reopened', 'ready_for_review', 'closed'])
 const COMMENT_ACTIONS = new Set(['created'])
 
 /** A signed App webhook may cover many installations; only the configured repo is trusted. */
@@ -72,7 +72,10 @@ export function githubConnector(opts: GithubConnectorOptions): Connector {
       }
       if ('pull_request' in body) {
         const p = PullRequestEvent.parse(body)
-        return PR_ACTIONS.has(p.action) ? [pull(p, ctx)] : []
+        if (!PR_ACTIONS.has(p.action)) return []
+        // Closed-but-unmerged PRs are not evidence that work already shipped.
+        if (p.action === 'closed' && !p.pull_request.merged && !p.pull_request.merged_at) return []
+        return [pull(p, ctx)]
       }
       if ('issue' in body) {
         const p = IssuesEvent.parse(body)
@@ -114,9 +117,12 @@ function issue(p: IssuesEventT, ctx: ParseContext): RawEvent {
 
 function pull(p: PullRequestEventT, ctx: ParseContext): RawEvent {
   const ref = threadRef(p.repository.full_name, p.pull_request.number, true)
+  const merged = p.action === 'closed' && Boolean(p.pull_request.merged || p.pull_request.merged_at)
   return {
     ...base('pr', ctx),
-    sourceRef: ref,
+    // A merged closure is new evidence, not a redelivery of the opened PR. Keeping a
+    // distinct source ref preserves the immutable input row while sharing its thread.
+    sourceRef: merged ? `${ref}:merged` : ref,
     threadKey: ref,
     actor: actor(p.pull_request.user),
     title: p.pull_request.title,

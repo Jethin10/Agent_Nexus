@@ -1,6 +1,7 @@
 import { deliverFn } from './deliver.js'
 import { ingestFn } from './ingest.js'
 import { maintenanceFn } from './maintenance.js'
+import { outboxFn } from './outbox.js'
 import { planAndCodeFn } from './plan-and-code.js'
 import { qaFn } from './qa.js'
 import { triageFn } from './triage.js'
@@ -17,4 +18,5 @@ export const functions = [
   qaFn,
   deliverFn,
   maintenanceFn,
+  outboxFn,
 ] as const

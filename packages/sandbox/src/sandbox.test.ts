@@ -265,7 +265,12 @@ describe('selectDriver — E2B primary, Actions fallback, local last', () => {
 
   it('falls back to Actions when E2B credit is gone', () => {
     expect(
-      selectDriver({ GITHUB_TOKEN: 't', GITHUB_OWNER: 'acme', GITHUB_REPO: 'api' }).id,
+      selectDriver({
+        GITHUB_TOKEN: 't',
+        GITHUB_OWNER: 'acme',
+        GITHUB_REPO: 'api',
+        ALLOW_ACTIONS: true,
+      }).id,
     ).toBe('actions')
   })
 

@@ -613,6 +613,46 @@ repository. Relevant events are now rejected with 403 before persistence unless 
 issue, PR, or comment ref belongs to the configured repository. This deployment remains
 intentionally single-repository until installation identity is persisted per org.
 
+**D34 — production retrieval uses `gemini-embedding-001` with task-specific 768d vectors.**
+`text-embedding-004` is retired. New events are idempotently stored as
+`RETRIEVAL_DOCUMENT`, while the current triage text is embedded as `RETRIEVAL_QUERY`.
+The model name is stored beside every vector, and maintenance re-embeds missing or
+older-space rows in bounded batches. Provider failure remains an explicit retrieval
+degradation and cannot become a confident refusal. `pnpm corpus:sync` backfills real
+issues and merged PRs before first traffic.
+
+**D35 — only confirmed merged PRs count as “already fixed on main.”**
+Opened and closed-unmerged PRs remain useful event context but are excluded from
+`gitActivity`. A merged closure gets the immutable ref `<repo>!<n>:merged`, sharing the
+original PR thread without colliding with its opened row. Corpus sync uses that same ref.
+
+**D36 — production QA requires the pinned E2B SDK.**
+The `e2b` runtime dependency is installed and readiness requires `E2B_API_KEY`.
+GitHub Actions remains experimental behind `ASCENDANT_ALLOW_ACTIONS_SANDBOX=1`; its
+input path now refuses oversize payloads rather than truncating source code. E2B uses a
+fixed absolute workspace, creates it before execution, strips secret-shaped environment
+variables, and installs dependencies without lifecycle scripts. Local execution remains
+development-only and never satisfies production readiness.
+
+**D37 — human mutations are authorized and replay-safe.**
+Slack decisions require an exact member id in `SLACK_REVIEWER_IDS`. Dashboard mutation
+requests must be same-origin in addition to valid Basic authentication, and audit rows
+use the configured `ASCENDANT_OPERATOR_NAME`. Human-resolution Inngest events carry
+stable ids, so repeating an already-persisted review repairs a failed dispatch without
+duplicating continuation.
+
+**D38 — deployed builds fail closed on the complete single-repo runtime contract.**
+Deployment markers require durable Postgres, signed Inngest keys, GitHub App and webhook,
+Gemini retrieval, E2B, Slack plus reviewer allowlist, Linear, and the dashboard gate.
+Local and CI builds remain credential-free. Maintenance marks non-triage runs stale after
+two hours; triage is excluded because it may legitimately wait 72 hours for a human.
+The production dependency baseline is Next 15.5.21, Inngest 3.54.0, Drizzle ORM 0.45.2,
+TypeScript 5.8.3, and Zod 3.25.76; `pnpm audit --prod --audit-level high` is clean.
+GitHub PR creation recovers an existing open PR after a retry-time 422. Decision comments
+are content-idempotent, GitHub source-response failures retry safely, and post-PR Slack/
+Linear failures now fail their isolated Inngest step so notification delivery retries
+without recreating the PR.
+
 ---
 
 ## 6. Rules that must not be broken

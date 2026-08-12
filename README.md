@@ -167,7 +167,7 @@ Delivery makes **no model call at all**. The PR body's *Why* section is the tria
 | Durable execution | Inngest | Temporal Cloud has no free tier |
 | Database | Neon Postgres + pgvector | pgvector on every plan; scale-to-zero |
 | Offline database | **PGlite** | real Postgres in WASM, in-process, no daemon |
-| Sandbox | E2B → GitHub Actions → local | Firecracker isolation, degrades rather than breaks |
+| Sandbox | E2B | Firecracker isolation; experimental Actions/local drivers are never production-ready fallbacks |
 | LLM | Groq → Gemini → OpenRouter cascade | all free tiers |
 | Validation | Zod | one schema validates LLM output *and* HTTP bodies |
 | Observability | own `agent_events` table | Inngest free retains traces 24h; ours is permanent |
@@ -182,7 +182,7 @@ Everything above runs with zero credentials. Adding keys upgrades specific parts
 |---|---|
 | `ASCENDANT_LIVE=1` | **use real inference at all.** A key alone is not enough — see below |
 | `GROQ_API_KEY` | the triage rungs (capability 0.95). This is the one that matters |
-| `GEMINI_API_KEY` | real `text-embedding-004` instead of hashed vectors |
+| `GEMINI_API_KEY` | real `gemini-embedding-001` retrieval vectors instead of hashed test vectors |
 | `OPENROUTER_API_KEY` | a 0.8 overflow rung. Works, but weaker than Groq on triage |
 | `DATABASE_URL` | Neon instead of local PGlite |
 | `GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY_BASE64` | mint short-lived installation tokens for real repository reads and writes |

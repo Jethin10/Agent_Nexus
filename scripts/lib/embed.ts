@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 /**
  * Embeddings for the seed corpus.
  *
- * §9.1 specifies Gemini `text-embedding-004` at 768 dimensions, and that is used when
+ * Production uses Gemini `gemini-embedding-001` at 768 dimensions, and that is used when
  * `GEMINI_API_KEY` is set. Without a key the alternative is not "no embeddings" —
  * that would leave retrieval sources 1 and 4 permanently empty, and the gate would
  * run on lexical and git evidence only, capping confidence below the autonomy band
@@ -56,7 +56,7 @@ function bucket(term: string): number {
  * **The output is deliberately rescaled into the range real embeddings occupy.** A raw
  * hashed bag-of-terms discriminates correctly but compresses everything into roughly
  * 0.1-0.35 cosine, while `EVIDENCE_FLOOR` is 0.62 and `EVIDENCE_CEILING` 0.92 —
- * calibrated for `text-embedding-004`, where unrelated documents in one repo genuinely
+ * calibrated for Gemini retrieval embeddings, where unrelated documents in one repo genuinely
  * sit around 0.5-0.6. Feeding raw hashed scores into that calibration collapses
  * `evidenceStrength` to 0 for *every* event, so no decision could ever be autonomous
  * and the demo would look like a broken gate.
@@ -103,26 +103,10 @@ export function hashEmbed(text: string): number[] {
   return out.map((x) => x / n2)
 }
 
-/** §9.1's real embedder. One request per document; the corpus is ~30 items. */
+/** Production's real embedder. One request per document; the corpus is ~30 items. */
 async function geminiEmbed(text: string, apiKey: string): Promise<number[]> {
-  const res = await fetch(
-    'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent',
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        model: 'models/text-embedding-004',
-        content: { parts: [{ text: text.slice(0, 8_000) }] },
-      }),
-    },
-  )
-  if (!res.ok) {
-    throw new Error(`gemini embed failed: ${res.status} ${(await res.text()).slice(0, 200)}`)
-  }
-  const body = (await res.json()) as { embedding?: { values?: number[] } }
-  const values = body.embedding?.values
-  if (!values?.length) throw new Error('gemini embed returned no values')
-  return values
+  const { embedText } = await import('@ascendant/workflows')
+  return embedText({ apiKey, text, task: 'RETRIEVAL_DOCUMENT' })
 }
 
 export function makeEmbedder(): Embedder {
@@ -130,8 +114,8 @@ export function makeEmbedder(): Embedder {
   if (key) {
     return {
       kind: 'gemini',
-      model: 'text-embedding-004',
-      label: 'Gemini text-embedding-004 (768d, real semantic embeddings)',
+      model: 'gemini-embedding-001',
+      label: 'Gemini gemini-embedding-001 (768d, real semantic embeddings)',
       embed: (text) => geminiEmbed(text, key),
     }
   }

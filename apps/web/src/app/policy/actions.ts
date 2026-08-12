@@ -66,7 +66,7 @@ export async function updatePolicy(_prev: ActionResult | null, form: FormData): 
     await ensureDb()
     await writeConfig(db(), currentOrgId(), spec.key, value, {
       note: `set from the Policy view`,
-      updatedBy: 'dashboard',
+      updatedBy: process.env.ASCENDANT_OPERATOR_NAME ?? 'local-dashboard-operator',
     })
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'the write failed' }

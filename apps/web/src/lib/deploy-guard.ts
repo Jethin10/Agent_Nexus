@@ -37,6 +37,33 @@ export function shouldBlockBuild(env: GuardEnv): boolean {
   return !env.ASCENDANT_DASHBOARD_PASSWORD
 }
 
+export const REQUIRED_DEPLOYMENT_ENV = [
+  'DATABASE_URL',
+  'INNGEST_EVENT_KEY',
+  'INNGEST_SIGNING_KEY',
+  'GITHUB_APP_ID',
+  'GITHUB_APP_PRIVATE_KEY_BASE64',
+  'GITHUB_WEBHOOK_SECRET',
+  'GITHUB_OWNER',
+  'GITHUB_REPO',
+  'GEMINI_API_KEY',
+  'E2B_API_KEY',
+  'SLACK_BOT_TOKEN',
+  'SLACK_CHANNEL_ID',
+  'SLACK_SIGNING_SECRET',
+  'SLACK_REVIEWER_IDS',
+  'LINEAR_API_KEY',
+  'LINEAR_TEAM_ID',
+  'ASCENDANT_OPERATOR_NAME',
+  'ASCENDANT_ORG_ID',
+] as const
+
+/** Core server data and workflow authentication must never degrade silently in a deploy. */
+export function missingDeploymentRuntimeConfig(env: GuardEnv): string[] {
+  if (!isDeployment(env)) return []
+  return REQUIRED_DEPLOYMENT_ENV.filter((key) => !env[key])
+}
+
 export const OPEN_DASHBOARD_ERROR =
   'ASCENDANT_DASHBOARD_PASSWORD is not set.\n\n' +
   'The Policy view writes the autonomy threshold that gates autonomous action, so an\n' +

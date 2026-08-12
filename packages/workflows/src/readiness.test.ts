@@ -19,13 +19,16 @@ describe('integrationReadiness', () => {
       INNGEST_EVENT_KEY: 'event-secret',
       INNGEST_SIGNING_KEY: 'signing-secret',
       GROQ_API_KEY: 'model-secret',
+      GEMINI_API_KEY: 'embedding-secret',
       SLACK_BOT_TOKEN: 'slack-secret',
       SLACK_CHANNEL_ID: 'C123',
       SLACK_SIGNING_SECRET: 'slack-signing-secret',
+      SLACK_REVIEWER_IDS: 'U123',
       LINEAR_API_KEY: 'linear-secret',
       LINEAR_TEAM_ID: 'team-id',
       E2B_API_KEY: 'e2b-secret',
       ASCENDANT_DASHBOARD_PASSWORD: 'dashboard-secret',
+      ASCENDANT_OPERATOR_NAME: 'Jethin10',
     })
 
     expect(Object.values(checks).every((check) => check.status === 'ready')).toBe(true)
@@ -35,6 +38,7 @@ describe('integrationReadiness', () => {
       'webhook-secret',
       'postgres://secret',
       'model-secret',
+      'embedding-secret',
       'slack-secret',
       'linear-secret',
       'e2b-secret',
