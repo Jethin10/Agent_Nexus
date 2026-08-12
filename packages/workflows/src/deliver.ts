@@ -173,7 +173,7 @@ export const deliverFn = inngest.createFunction(
       }
     })
 
-    const repo = repoFromEnv()
+    const repo = await repoFromEnv()
     if (!repo) {
       await step.run('no-repo', async () => {
         await trace(db(), {

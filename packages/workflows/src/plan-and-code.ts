@@ -52,7 +52,7 @@ export const planAndCodeFn = inngest.createFunction(
       return { id: r.id }
     })
 
-    const repo = repoFromEnv()
+    const repo = await repoFromEnv()
     if (!repo) {
       await step.run('no-repo', async () => {
         await trace(db(), {
@@ -62,7 +62,13 @@ export const planAndCodeFn = inngest.createFunction(
           agent: 'orchestrator',
           phase: 'blocked',
           summary: 'No GitHub repository is configured, so no code can be written for this ticket.',
-          detail: { need: ['GITHUB_TOKEN', 'GITHUB_OWNER', 'GITHUB_REPO'] },
+          detail: {
+            need: [
+              'GITHUB_OWNER',
+              'GITHUB_REPO',
+              'GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY_BASE64 (or GITHUB_TOKEN locally)',
+            ],
+          },
         })
         await updateTicket(db(), orgId, ticketId, { status: 'blocked' })
         await finishRun(db(), orgId, run.id, 'failed', { error: 'no repo configured' })

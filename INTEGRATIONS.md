@@ -29,9 +29,13 @@ https://<deployment>/api/webhooks/github
 ```
 
 Set `GITHUB_WEBHOOK_SECRET`, `GITHUB_OWNER`, `GITHUB_REPO`, and
-`GITHUB_DEFAULT_BRANCH`. For local verification, `GITHUB_TOKEN` may be a short-lived
-fine-grained token scoped only to the demo repository. Production should mint a
-one-hour GitHub App installation token per run.
+`GITHUB_DEFAULT_BRANCH`. In production, set `GITHUB_APP_ID` and the app's PEM private
+key as base64 in `GITHUB_APP_PRIVATE_KEY_BASE64`; Ascendant signs a short-lived app JWT,
+finds the configured repository installation, and mints a repository-scoped one-hour
+installation token for each workflow invocation. The token is never persisted or sent
+to an agent or sandbox. For local verification only, `GITHUB_TOKEN` may be a short-lived
+fine-grained token scoped to the configured repository. App credentials take precedence
+when both authentication methods are present.
 
 The normal workflow posts the decision back to a matching configured GitHub issue.
 Autonomous REJECT/MERGE decisions may close it as `not_planned`; every outcome gets

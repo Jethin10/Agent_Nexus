@@ -13,16 +13,24 @@ const configured = (name: string, value: string | undefined, why: string) => {
 }
 
 async function main() {
-  const repo = repoFromEnv()
-  if (!repo) {
-    checks.push({ name: 'GitHub repository', status: 'missing', detail: 'set GITHUB_TOKEN, GITHUB_OWNER and GITHUB_REPO' })
-  } else {
-    try {
+  try {
+    const repo = await repoFromEnv()
+    if (!repo) {
+      checks.push({
+        name: 'GitHub repository',
+        status: 'missing',
+        detail: 'set GITHUB_OWNER, GITHUB_REPO, and GitHub App credentials (or GITHUB_TOKEN locally)',
+      })
+    } else {
       const sha = await repoClient(repo).headSha()
-      checks.push({ name: 'GitHub repository', status: 'ready', detail: `${repo.owner}/${repo.repo}@${repo.ref ?? 'main'} (${sha.slice(0, 8)})` })
-    } catch (err) {
-      checks.push({ name: 'GitHub repository', status: 'failed', detail: message(err) })
+      checks.push({
+        name: 'GitHub repository',
+        status: 'ready',
+        detail: `${repo.owner}/${repo.repo}@${repo.ref ?? 'main'} (${sha.slice(0, 8)}; ${repo.auth} auth)`,
+      })
     }
+  } catch (err) {
+    checks.push({ name: 'GitHub repository', status: 'failed', detail: message(err) })
   }
   configured('GitHub webhook', process.env.GITHUB_WEBHOOK_SECRET, 'set GITHUB_WEBHOOK_SECRET')
 
@@ -55,15 +63,12 @@ async function main() {
   configured('Slack interactions', process.env.SLACK_SIGNING_SECRET, 'set SLACK_SIGNING_SECRET')
 
   const providers = ['GROQ_API_KEY', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY'].filter((key) => process.env[key])
-  const liveEnabled = process.env.ASCENDANT_LIVE === '1'
   checks.push({
     name: 'Live inference',
-    status: liveEnabled && providers.length ? 'ready' : 'missing',
+    status: providers.length ? 'ready' : 'missing',
     detail: providers.length
-      ? liveEnabled
-        ? `${providers.map((key) => key.replace('_API_KEY', '')).join(' → ')} configured and live mode enabled`
-        : `${providers.map((key) => key.replace('_API_KEY', '')).join(' → ')} configured; set ASCENDANT_LIVE=1 to opt in`
-      : 'set a provider key and ASCENDANT_LIVE=1',
+      ? `${providers.map((key) => key.replace('_API_KEY', '')).join(' → ')} configured for server workflows`
+      : 'set at least one provider key',
   })
   checks.push({
     name: 'Sandbox',

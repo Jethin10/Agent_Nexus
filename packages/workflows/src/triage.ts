@@ -260,7 +260,7 @@ export const triageFn = inngest.createFunction(
     // erasing the judgement or crashing the pipeline.
     await step.run('respond-at-source', async () => {
       const failures: string[] = []
-      const repo = repoFromEnv()
+      const repo = await repoFromEnv()
       if (repo && decided.source === 'github' && isConfiguredIssueRef(decided.sourceRef, repo)) {
         const writer = githubWriter(repo)
         try {
