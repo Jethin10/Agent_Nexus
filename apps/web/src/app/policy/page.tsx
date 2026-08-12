@@ -185,9 +185,8 @@ export default async function PolicyPage() {
         )}
 
         <p className="small dim">
-          <Pill flag>no auth</Pill> This view has no session check yet, so anyone who can
-          reach this URL can change these values. That is the first thing to fix before this
-          is exposed beyond a demo.
+          <Pill>protected</Pill> Dashboard writes pass through the shared-secret gate. A
+          production build is refused unless <code>ASCENDANT_DASHBOARD_PASSWORD</code> is set.
         </p>
       </>
     )

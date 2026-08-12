@@ -18,6 +18,8 @@
     "db:push": "pnpm --filter @ascendant/db push",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "demo": "tsx scripts/demo.ts",
+    "demo:build": "tsx scripts/demo-build.ts",
+    "integrations:check": "tsx scripts/integrations-check.ts",
     "eval": "tsx scripts/eval.ts"
   },
   "devDependencies": {

@@ -80,6 +80,7 @@ export async function updatePolicy(_prev: ActionResult | null, form: FormData): 
   revalidatePath('/policy')
   revalidatePath('/')
   revalidatePath('/metrics')
+  revalidatePath('/demo')
 
   return {
     ok: true,
