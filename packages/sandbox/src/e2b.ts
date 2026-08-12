@@ -35,6 +35,7 @@ export interface E2bDriverOptions {
 }
 
 type E2bSandbox = Awaited<ReturnType<typeof Sandbox.create>>
+const WORKSPACE = '/home/user/ascendant-workspace'
 
 export function e2bDriver(opts: E2bDriverOptions): SandboxDriver {
   const sandboxes = new Map<string, E2bSandbox>()
@@ -61,6 +62,8 @@ export function e2bDriver(opts: E2bDriverOptions): SandboxDriver {
         envs: stripSecrets(spec.env),
       })
 
+      await sandbox.commands.run(`mkdir -p ${shellQuote(WORKSPACE)}`, { timeoutMs: 10_000, envs: {} })
+
       const now = Date.now()
       const h: Handle = {
         id: sandbox.sandboxId,
@@ -78,7 +81,7 @@ export function e2bDriver(opts: E2bDriverOptions): SandboxDriver {
       const sandbox = get(h)
       for (const [path, content] of Object.entries(files)) {
         assertSafeWritePath(path)
-        await sandbox.files.write(path, content)
+        await sandbox.files.write(`${WORKSPACE}/${path}`, content)
       }
     },
 
@@ -101,7 +104,7 @@ export function e2bDriver(opts: E2bDriverOptions): SandboxDriver {
 
       try {
         const res = await sandbox.commands.run(line, {
-          ...(execOpts.cwd ? { cwd: execOpts.cwd } : {}),
+          cwd: execOpts.cwd ? `${WORKSPACE}/${execOpts.cwd.replace(/^\.\/?/, '')}` : WORKSPACE,
           timeoutMs,
           envs: {},
         })
@@ -130,7 +133,8 @@ export function e2bDriver(opts: E2bDriverOptions): SandboxDriver {
 
     async readFile(h: Handle, path: string): Promise<string> {
       assertAlive(h)
-      return get(h).files.read(path)
+      assertSafeWritePath(path)
+      return get(h).files.read(`${WORKSPACE}/${path}`)
     },
 
     /** Idempotent: the workflow calls this in a `finally`, possibly twice. */

@@ -629,8 +629,10 @@ original PR thread without colliding with its opened row. Corpus sync uses that 
 **D36 — production QA requires the pinned E2B SDK.**
 The `e2b` runtime dependency is installed and readiness requires `E2B_API_KEY`.
 GitHub Actions remains experimental behind `ASCENDANT_ALLOW_ACTIONS_SANDBOX=1`; its
-input path now refuses oversize payloads rather than truncating source code. Local
-execution remains development-only and never satisfies production readiness.
+input path now refuses oversize payloads rather than truncating source code. E2B uses a
+fixed absolute workspace, creates it before execution, strips secret-shaped environment
+variables, and installs dependencies without lifecycle scripts. Local execution remains
+development-only and never satisfies production readiness.
 
 **D37 — human mutations are authorized and replay-safe.**
 Slack decisions require an exact member id in `SLACK_REVIEWER_IDS`. Dashboard mutation
