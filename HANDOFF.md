@@ -586,8 +586,10 @@ configured repository installation, and mints a repository-scoped token for each
 workflow invocation. The token is never persisted, logged, sent to an agent, or placed
 inside an E2B sandbox. If only one of `GITHUB_APP_ID` and
 `GITHUB_APP_PRIVATE_KEY_BASE64` is set, configuration fails closed instead of silently
-falling back to `GITHUB_TOKEN`. Source-response authentication failures are traced as
-degradation after the immutable decision is stored; they do not erase or re-run triage.
+falling back to `GITHUB_TOKEN`. A local token additionally requires
+`ASCENDANT_ALLOW_GITHUB_TOKEN=1`; never set that flag in production. Source-response
+authentication failures are traced as degradation after the immutable decision is
+stored; they do not erase or re-run triage.
 
 **D31 — fixtures remain test infrastructure, not a product surface.**
 The `/demo` route redirects to `/integrations`, the walkthrough component was removed,
@@ -602,6 +604,14 @@ the row already exists; sending only when `inserted === true` permanently strand
 event. The webhook now always sends `ascendant:event:<event uuid>`. Inngest deduplicates
 a successful first send, while a failed first send is repaired by the redelivery. The
 triage workflow's immutable decision check remains the downstream idempotency boundary.
+
+**D33 — a valid App signature does not authorize every installed repository.**
+A GitHub App webhook secret is shared across installations. Without an explicit
+`GITHUB_OWNER/GITHUB_REPO` source-ref check, an issue from any repository carrying a
+valid App signature could enter the pipeline and generate work against the configured
+repository. Relevant events are now rejected with 403 before persistence unless their
+issue, PR, or comment ref belongs to the configured repository. This deployment remains
+intentionally single-repository until installation identity is persisted per org.
 
 ---
 

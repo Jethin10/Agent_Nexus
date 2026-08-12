@@ -19,7 +19,10 @@ export function integrationReadiness(
   const githubRepo = has(env, 'GITHUB_OWNER', 'GITHUB_REPO')
   const githubApp = has(env, 'GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY_BASE64')
   const githubAppPartial = Boolean(env.GITHUB_APP_ID) !== Boolean(env.GITHUB_APP_PRIVATE_KEY_BASE64)
-  const githubToken = Boolean(env.GITHUB_TOKEN)
+  const githubToken = Boolean(
+    env.GITHUB_TOKEN && env.ASCENDANT_ALLOW_GITHUB_TOKEN === '1',
+  )
+  const blockedGithubToken = Boolean(env.GITHUB_TOKEN) && !githubToken
   const githubWebhook = Boolean(env.GITHUB_WEBHOOK_SECRET)
   const githubAccess = (githubApp || githubToken) && !githubAppPartial
   const githubReady = githubRepo && githubAccess && githubWebhook
@@ -42,10 +45,16 @@ export function integrationReadiness(
     {
       id: 'github',
       name: 'GitHub',
-      status: githubReady ? 'ready' : githubRepo || githubApp || githubToken || githubWebhook ? 'degraded' : 'missing',
+      status: githubReady
+        ? 'ready'
+        : githubRepo || githubApp || githubToken || blockedGithubToken || githubWebhook
+          ? 'degraded'
+          : 'missing',
       detail: githubAppPartial
         ? 'GitHub App credentials are incomplete; both values are required.'
-        : githubReady
+        : blockedGithubToken
+          ? 'A static GitHub token is present but disabled; production must use GitHub App credentials.'
+          : githubReady
           ? `App webhook and ${githubApp ? 'installation-token' : 'local token'} access are configured for ${env.GITHUB_OWNER}/${env.GITHUB_REPO}.`
           : 'Repository access and the signed webhook receiver are both required.',
       required: ['GITHUB_OWNER', 'GITHUB_REPO', 'GITHUB_WEBHOOK_SECRET', 'GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY_BASE64'],

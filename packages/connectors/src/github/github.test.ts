@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { normalize, unitKey } from '@ascendant/core'
-import { githubConnector } from './index.js'
+import { githubConnector, isGithubRepositoryRef } from './index.js'
 
 const SECRET = 'shh-not-a-real-secret'
 const gh = githubConnector({ secret: SECRET })
@@ -29,6 +29,27 @@ const issuePayload = {
     created_at: '2026-07-01T09:00:00Z',
   },
 }
+
+describe('repository authorization', () => {
+  const expected = { owner: 'acme', repo: 'api' }
+
+  it.each([
+    'acme/api#412',
+    'ACME/API!88',
+    'acme/api#412:comment:9001',
+  ])('accepts configured repository ref %s', (ref) => {
+    expect(isGithubRepositoryRef(ref, expected)).toBe(true)
+  })
+
+  it.each([
+    'other/api#412',
+    'acme/other!88',
+    '#412',
+    'acme/api',
+  ])('rejects non-configured repository ref %s', (ref) => {
+    expect(isGithubRepositoryRef(ref, expected)).toBe(false)
+  })
+})
 
 describe('verify', () => {
   it('accepts a correctly signed body', async () => {

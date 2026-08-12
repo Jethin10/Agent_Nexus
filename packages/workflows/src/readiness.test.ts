@@ -57,6 +57,19 @@ describe('integrationReadiness', () => {
     expect(checks.github.detail).toContain('incomplete')
   })
 
+  it('reports an unapproved static GitHub token as degraded', () => {
+    const checks = byId({
+      GITHUB_OWNER: 'acme',
+      GITHUB_REPO: 'api',
+      GITHUB_TOKEN: 'static-token',
+      GITHUB_WEBHOOK_SECRET: 'secret',
+    })
+
+    expect(checks.github.status).toBe('degraded')
+    expect(checks.github.detail).toContain('disabled')
+    expect(JSON.stringify(checks.github)).not.toContain('static-token')
+  })
+
   it('labels local-only database and sandbox drivers as degraded', () => {
     const checks = byId({
       ASCENDANT_LOCAL_DB: '1',

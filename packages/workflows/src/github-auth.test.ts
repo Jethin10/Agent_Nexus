@@ -120,4 +120,29 @@ describe('GitHub App authentication', () => {
 
     await expect(repoFromEnv()).rejects.toThrow('GitHub App authentication is incomplete')
   })
+
+  it('rejects an implicit static-token fallback', async () => {
+    vi.stubEnv('GITHUB_OWNER', 'acme')
+    vi.stubEnv('GITHUB_REPO', 'api')
+    vi.stubEnv('GITHUB_APP_ID', '')
+    vi.stubEnv('GITHUB_APP_PRIVATE_KEY_BASE64', '')
+    vi.stubEnv('GITHUB_TOKEN', 'developer-token')
+    vi.stubEnv('ASCENDANT_ALLOW_GITHUB_TOKEN', '')
+
+    await expect(repoFromEnv()).rejects.toThrow('GITHUB_TOKEN is disabled')
+  })
+
+  it('allows a static token only behind the explicit local-development flag', async () => {
+    vi.stubEnv('GITHUB_OWNER', 'acme')
+    vi.stubEnv('GITHUB_REPO', 'api')
+    vi.stubEnv('GITHUB_APP_ID', '')
+    vi.stubEnv('GITHUB_APP_PRIVATE_KEY_BASE64', '')
+    vi.stubEnv('GITHUB_TOKEN', 'developer-token')
+    vi.stubEnv('ASCENDANT_ALLOW_GITHUB_TOKEN', '1')
+
+    await expect(repoFromEnv()).resolves.toMatchObject({
+      token: 'developer-token',
+      auth: 'token',
+    })
+  })
 })

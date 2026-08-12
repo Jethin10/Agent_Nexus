@@ -21,6 +21,16 @@ const ISSUE_ACTIONS = new Set(['opened', 'reopened', 'edited'])
 const PR_ACTIONS = new Set(['opened', 'reopened', 'ready_for_review'])
 const COMMENT_ACTIONS = new Set(['created'])
 
+/** A signed App webhook may cover many installations; only the configured repo is trusted. */
+export function isGithubRepositoryRef(
+  sourceRef: string,
+  expected: { owner: string; repo: string },
+): boolean {
+  const match = /^([^/#!:]+)\/([^#!:]+)[#!]\d+(?::|$)/.exec(sourceRef)
+  if (!match) return false
+  return `${match[1]}/${match[2]}`.toLowerCase() === `${expected.owner}/${expected.repo}`.toLowerCase()
+}
+
 /** `owner/repo#412` — also the thread key, so a comment collapses onto its issue. */
 function threadRef(repo: string, number: number, isPull: boolean): string {
   return `${repo}${isPull ? '!' : '#'}${number}`

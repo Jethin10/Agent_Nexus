@@ -261,7 +261,7 @@ async function main() {
       const repo = await repoFromEnv()
       if (!repo) {
         throw new Error(
-          '--publish requires GITHUB_OWNER, GITHUB_REPO, and GitHub App credentials (or GITHUB_TOKEN locally).',
+          '--publish requires repository + GitHub App credentials (or GITHUB_TOKEN + ASCENDANT_ALLOW_GITHUB_TOKEN=1 locally).',
         )
       }
       const remote = repoClient(repo)

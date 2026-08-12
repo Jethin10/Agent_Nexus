@@ -19,7 +19,7 @@ async function main() {
       checks.push({
         name: 'GitHub repository',
         status: 'missing',
-        detail: 'set GITHUB_OWNER, GITHUB_REPO, and GitHub App credentials (or GITHUB_TOKEN locally)',
+        detail: 'set repository + GitHub App credentials (or GITHUB_TOKEN + ASCENDANT_ALLOW_GITHUB_TOKEN=1 locally)',
       })
     } else {
       const sha = await repoClient(repo).headSha()

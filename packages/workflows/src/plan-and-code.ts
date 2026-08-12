@@ -66,7 +66,7 @@ export const planAndCodeFn = inngest.createFunction(
             need: [
               'GITHUB_OWNER',
               'GITHUB_REPO',
-              'GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY_BASE64 (or GITHUB_TOKEN locally)',
+              'GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY_BASE64 (or explicitly enabled GITHUB_TOKEN locally)',
             ],
           },
         })

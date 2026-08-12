@@ -163,12 +163,18 @@ export async function repoFromEnv(): Promise<
       repo,
     })
     auth = 'app'
-  } else if (process.env.GITHUB_TOKEN) {
-    // A fine-grained token remains useful for local setup. Deployed environments
-    // should use the App path above so credentials are short-lived and scoped by the
-    // installation rather than by a developer account.
+  } else if (
+    process.env.GITHUB_TOKEN &&
+    process.env.ASCENDANT_ALLOW_GITHUB_TOKEN === '1'
+  ) {
+    // A fine-grained token remains useful for explicit local setup. It is never an
+    // implicit fallback: deployed environments must use short-lived App credentials.
     token = process.env.GITHUB_TOKEN
     auth = 'token'
+  } else if (process.env.GITHUB_TOKEN) {
+    throw new RepoError(
+      'GITHUB_TOKEN is disabled unless ASCENDANT_ALLOW_GITHUB_TOKEN=1; production must use GitHub App credentials',
+    )
   } else {
     return undefined
   }

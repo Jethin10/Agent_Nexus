@@ -1,5 +1,5 @@
 import { normalize } from '@ascendant/core'
-import { githubConnector } from '@ascendant/connectors'
+import { githubConnector, isGithubRepositoryRef } from '@ascendant/connectors'
 import { db, insertEvent, readPolicy } from '@ascendant/db'
 import { scanForInjection } from '@ascendant/router'
 import { inngest } from '@ascendant/workflows'
@@ -57,6 +57,18 @@ export async function POST(req: Request): Promise<Response> {
   // Actions that produce no unit of work — a label change, a milestone — return [].
   if (raws.length === 0) {
     return json({ ok: true, ignored: true, action: readAction(payload) }, 200)
+  }
+
+  const owner = process.env.GITHUB_OWNER
+  const repo = process.env.GITHUB_REPO
+  if (!owner || !repo) {
+    return json({ error: 'GITHUB_OWNER and GITHUB_REPO are not configured' }, 503)
+  }
+  if (raws.some((raw) => !isGithubRepositoryRef(raw.sourceRef, { owner, repo }))) {
+    // One App webhook secret can authenticate payloads from every installation. A
+    // valid signature therefore proves GitHub sent the event, not that this deployment
+    // is authorized to turn that repository's issue into work against its configured repo.
+    return json({ error: 'repository is not authorized for this deployment' }, 403)
   }
 
   const database = db()

@@ -34,8 +34,9 @@ key as base64 in `GITHUB_APP_PRIVATE_KEY_BASE64`; Ascendant signs a short-lived 
 finds the configured repository installation, and mints a repository-scoped one-hour
 installation token for each workflow invocation. The token is never persisted or sent
 to an agent or sandbox. For local verification only, `GITHUB_TOKEN` may be a short-lived
-fine-grained token scoped to the configured repository. App credentials take precedence
-when both authentication methods are present.
+fine-grained token scoped to the configured repository, but it is disabled unless
+`ASCENDANT_ALLOW_GITHUB_TOKEN=1` is also set. Never set that flag in production. App
+credentials take precedence when both authentication methods are present.
 
 The normal workflow posts the decision back to a matching configured GitHub issue.
 Autonomous REJECT/MERGE decisions may close it as `not_planned`; every outcome gets

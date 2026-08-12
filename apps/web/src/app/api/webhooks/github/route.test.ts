@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   insertEvent: vi.fn(),
+  parse: vi.fn(),
 }))
 
 vi.mock('@ascendant/core', () => ({
@@ -12,17 +13,12 @@ vi.mock('@ascendant/core', () => ({
 vi.mock('@ascendant/connectors', () => ({
   githubConnector: () => ({
     verify: vi.fn().mockResolvedValue(true),
-    parse: vi.fn().mockResolvedValue([
-      {
-        orgId: 'org_live',
-        source: 'github',
-        sourceRef: 'acme/api#42',
-        kind: 'issue',
-        title: 'Real issue',
-        body: 'A sufficiently detailed issue body for triage.',
-      },
-    ]),
+    parse: mocks.parse,
   }),
+  isGithubRepositoryRef: (
+    sourceRef: string,
+    expected: { owner: string; repo: string },
+  ) => sourceRef.toLowerCase().startsWith(`${expected.owner}/${expected.repo}`.toLowerCase()),
 }))
 
 vi.mock('@ascendant/db', () => ({
@@ -56,6 +52,18 @@ const row = {
 
 beforeEach(() => {
   vi.stubEnv('GITHUB_WEBHOOK_SECRET', 'webhook-secret')
+  vi.stubEnv('GITHUB_OWNER', 'acme')
+  vi.stubEnv('GITHUB_REPO', 'api')
+  mocks.parse.mockReset().mockResolvedValue([
+    {
+      orgId: 'org_live',
+      source: 'github',
+      sourceRef: 'acme/api#42',
+      kind: 'issue',
+      title: 'Real issue',
+      body: 'A sufficiently detailed issue body for triage.',
+    },
+  ])
   mocks.send.mockReset().mockResolvedValue({ ids: ['inngest-id'] })
   mocks.insertEvent
     .mockReset()
@@ -68,18 +76,18 @@ afterEach(() => {
 })
 
 describe('GitHub webhook dispatch recovery', () => {
-  it('resends an existing row with the same Inngest idempotency key', async () => {
-    const request = () =>
-      new Request('http://localhost/api/webhooks/github', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-github-delivery': 'delivery-42',
-          'x-hub-signature-256': 'sha256=accepted-by-mock',
-        },
-        body: JSON.stringify({ action: 'opened' }),
-      })
+  const request = () =>
+    new Request('http://localhost/api/webhooks/github', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-github-delivery': 'delivery-42',
+        'x-hub-signature-256': 'sha256=accepted-by-mock',
+      },
+      body: JSON.stringify({ action: 'opened' }),
+    })
 
+  it('resends an existing row with the same Inngest idempotency key', async () => {
     expect((await POST(request())).status).toBe(202)
     expect((await POST(request())).status).toBe(202)
 
@@ -95,5 +103,23 @@ describe('GitHub webhook dispatch recovery', () => {
       },
     })
     expect(mocks.send.mock.calls[1]?.[0]).toEqual(mocks.send.mock.calls[0]?.[0])
+  })
+
+  it('rejects a valid App webhook from a different repository before persistence', async () => {
+    mocks.parse.mockResolvedValueOnce([
+      {
+        orgId: 'org_live',
+        source: 'github',
+        sourceRef: 'other/repo#42',
+        kind: 'issue',
+        title: 'Cross-repository issue',
+        body: 'This must not create work against acme/api.',
+      },
+    ])
+
+    const response = await POST(request())
+    expect(response.status).toBe(403)
+    expect(mocks.insertEvent).not.toHaveBeenCalled()
+    expect(mocks.send).not.toHaveBeenCalled()
   })
 })
