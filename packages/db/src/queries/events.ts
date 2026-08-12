@@ -23,10 +23,9 @@ function boundedRaw(raw: unknown): unknown {
 export interface InsertedEvent {
   row: EventRow
   /**
-   * False when the unique index absorbed a redelivery. The caller must not emit
-   * `triage/requested` in that case — GitHub redelivers, Pub/Sub is at-least-once,
-   * and a second triage run on the same event would double-spend the token budget
-   * and could post a duplicate comment.
+   * False when the unique index absorbed a redelivery. Ingress may repair a failed
+   * durable-dispatch attempt using the same event id; downstream decision insertion
+   * remains idempotent and must never mutate an existing decision.
    */
   inserted: boolean
 }

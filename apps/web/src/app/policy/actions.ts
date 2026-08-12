@@ -6,9 +6,8 @@ import { currentOrgId } from '@/lib/org'
 import { ensureDb } from '@/lib/local-db'
 
 /**
- * §5.4 / §16 beat 4 — thresholds live in the `config` table so they can move without a
- * deploy, and the demo drags the autonomy threshold from 0.80 to 0.95 live to show the
- * same decision get routed to a human instead of acted on.
+ * Thresholds live in the `config` table so operators can move them without a deploy
+ * and route the same confidence score to a human instead of autonomous action.
  *
  * Writes are clamped server-side. A threshold outside [0,1] would make `band()`
  * nonsensical, and the number arrives from a form input rather than from code.
@@ -73,14 +72,10 @@ export async function updatePolicy(_prev: ActionResult | null, form: FormData): 
     return { ok: false, message: err instanceof Error ? err.message : 'the write failed' }
   }
 
-  /**
-   * The Inbox and Metrics views read these bands to draw the confidence bars, so both
-   * are revalidated — otherwise the demo drags the threshold and nothing visibly moves.
-   */
+  /** The Inbox and Metrics views read these bands, so both need fresh server data. */
   revalidatePath('/policy')
   revalidatePath('/')
   revalidatePath('/metrics')
-  revalidatePath('/demo')
 
   return {
     ok: true,

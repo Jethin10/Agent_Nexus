@@ -258,8 +258,12 @@ async function main() {
 
     let published: { url: string; number: number; isDraft: boolean } | undefined
     if (PUBLISH) {
-      const repo = repoFromEnv()
-      if (!repo) throw new Error('--publish requires GITHUB_TOKEN, GITHUB_OWNER and GITHUB_REPO.')
+      const repo = await repoFromEnv()
+      if (!repo) {
+        throw new Error(
+          '--publish requires repository + GitHub App credentials (or GITHUB_TOKEN + ASCENDANT_ALLOW_GITHUB_TOKEN=1 locally).',
+        )
+      }
       const remote = repoClient(repo)
       const remoteFiles = await remote.readFiles(['src/session.ts', 'src/session.test.ts'])
       for (const path of ['src/session.ts', 'src/session.test.ts'] as const) {

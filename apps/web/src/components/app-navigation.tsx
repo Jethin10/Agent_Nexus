@@ -4,11 +4,11 @@ import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 
 const ITEMS = [
-  { href: '/demo', label: 'Live demo', icon: PlayIcon, match: '/demo' },
   { href: '/', label: 'Inbox', icon: InboxIcon, match: '/' },
   { href: '/metrics', label: 'Decisions', icon: LayersIcon, match: '/metrics' },
   { href: '/?review=1', label: 'Evidence', icon: DocumentIcon, match: '/evidence' },
   { href: '/policy', label: 'Policy', icon: ShieldIcon, match: '/policy' },
+  { href: '/integrations', label: 'Integrations', icon: PlugIcon, match: '/integrations' },
 ]
 
 export function AppNavigation() {
@@ -32,8 +32,8 @@ export function AppNavigation() {
   )
 }
 
-function PlayIcon() {
-  return <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" /><path d="m8.2 6.8 5 3.2-5 3.2z" /></svg>
+function PlugIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3v4M13 3v4M5 7h10v2a5 5 0 0 1-5 5v3M7 17h6" /></svg>
 }
 
 function InboxIcon() {

@@ -1,4 +1,5 @@
 import type { FileMap } from '@ascendant/sandbox'
+import { githubAppInstallationToken } from './github-auth.js'
 
 /**
  * Repository access for the work pipeline. Lives in the workflow layer because R1
@@ -137,17 +138,54 @@ export function repoClient(opts: RepoClientOptions): RepoClient {
   }
 }
 
-export function repoFromEnv(): (RepoClientOptions & { configured: boolean }) | undefined {
-  const token = process.env.GITHUB_TOKEN
+export async function repoFromEnv(): Promise<
+  (RepoClientOptions & { configured: boolean; auth: 'app' | 'token' }) | undefined
+> {
   const owner = process.env.GITHUB_OWNER
   const repo = process.env.GITHUB_REPO
-  if (!token || !owner || !repo) return undefined
+  if (!owner || !repo) return undefined
+
+  const appId = process.env.GITHUB_APP_ID
+  const appKey = process.env.GITHUB_APP_PRIVATE_KEY_BASE64
+  if (Boolean(appId) !== Boolean(appKey)) {
+    throw new RepoError(
+      'GitHub App authentication is incomplete: set both GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_BASE64',
+    )
+  }
+
+  let token: string
+  let auth: 'app' | 'token'
+  if (appId && appKey) {
+    token = await githubAppInstallationToken({
+      appId,
+      privateKeyBase64: appKey,
+      owner,
+      repo,
+    })
+    auth = 'app'
+  } else if (
+    process.env.GITHUB_TOKEN &&
+    process.env.ASCENDANT_ALLOW_GITHUB_TOKEN === '1'
+  ) {
+    // A fine-grained token remains useful for explicit local setup. It is never an
+    // implicit fallback: deployed environments must use short-lived App credentials.
+    token = process.env.GITHUB_TOKEN
+    auth = 'token'
+  } else if (process.env.GITHUB_TOKEN) {
+    throw new RepoError(
+      'GITHUB_TOKEN is disabled unless ASCENDANT_ALLOW_GITHUB_TOKEN=1; production must use GitHub App credentials',
+    )
+  } else {
+    return undefined
+  }
+
   return {
     token,
     owner,
     repo,
     ...(process.env.GITHUB_DEFAULT_BRANCH ? { ref: process.env.GITHUB_DEFAULT_BRANCH } : {}),
     configured: true,
+    auth,
   }
 }
 

@@ -47,7 +47,7 @@ export const qaFn = inngest.createFunction(
       return { id: r.id }
     })
 
-    const repo = repoFromEnv()
+    const repo = await repoFromEnv()
 
     /**
      * The sandbox step is deliberately one `step.run`. Everything inside it — create,
@@ -66,9 +66,9 @@ export const qaFn = inngest.createFunction(
         driver = selectDriver({
           E2B_API_KEY: process.env.E2B_API_KEY,
           E2B_TEMPLATE_ID: process.env.E2B_TEMPLATE_ID,
-          GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-          GITHUB_OWNER: process.env.GITHUB_OWNER,
-          GITHUB_REPO: process.env.GITHUB_REPO,
+          GITHUB_TOKEN: repo?.token,
+          GITHUB_OWNER: repo?.owner,
+          GITHUB_REPO: repo?.repo,
           ACTIONS_WORKFLOW: process.env.ACTIONS_WORKFLOW,
         })
       } catch (err) {
