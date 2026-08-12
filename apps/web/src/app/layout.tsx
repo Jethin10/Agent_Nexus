@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { demoMode } from '@/lib/org'
+import { currentOrgId } from '@/lib/org'
 import { AppNavigation } from '@/components/app-navigation'
 import './globals.css'
 
@@ -10,7 +10,12 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const mode = demoMode()
+  const workspace =
+    process.env.ASCENDANT_WORKSPACE_NAME ??
+    (process.env.GITHUB_OWNER && process.env.GITHUB_REPO
+      ? `${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}`
+      : currentOrgId())
+  const runtime = process.env.DATABASE_URL ? 'Server runtime' : 'Local development'
 
   return (
     <html lang="en">
@@ -28,8 +33,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span className="shortcut-hint">⌘ K</span>
               <div className="workspace-avatar">A</div>
               <div>
-                <strong>Demo workspace</strong>
-                <span>{mode === 'replay' ? 'Replay mode' : 'Local environment'}</span>
+                <strong>{workspace}</strong>
+                <span>{runtime}</span>
               </div>
             </div>
           </aside>

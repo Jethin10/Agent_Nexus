@@ -53,9 +53,9 @@ export default async function InboxPage({ searchParams }: Props) {
   return (
     <div className="inbox-workspace">
       <header className="workspace-toolbar">
-        <Link className="demo-launch" href="/demo">
-          <span className="demo-launch-dot" />
-          Run judge demo
+        <Link className="runtime-launch" href="/integrations">
+          <span className="runtime-launch-dot" />
+          Runtime status
         </Link>
         <form className="search-form" method="get">
           <button className="search-submit" type="submit" aria-label="Submit search">

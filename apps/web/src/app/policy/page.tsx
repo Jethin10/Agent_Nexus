@@ -79,8 +79,8 @@ export default async function PolicyPage() {
           <p className="small dim" style={{ marginTop: 0 }}>
             Checked before every model call and decremented after. Exceeding a ceiling is an
             ESCALATE with the transcript attached, never a half-finished pull request. The
-            daily ceiling exists so a runaway loop at 2am cannot leave the demo without
-            quota at 10am.
+            daily ceiling exists so a runaway loop cannot consume the organization&apos;s
+            remaining provider quota before normal work begins.
           </p>
           <PolicyField
             field="ticketTokens"

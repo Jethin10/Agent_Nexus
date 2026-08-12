@@ -22,51 +22,36 @@ The multi-agent debate, coding, review, QA and delivery are all here — they ar
 
 ---
 
-## Try it in three commands
+## Connect a real workspace
 
-No API keys, no Docker, no database, no network.
+Ascendant's server path consumes signed GitHub webhooks, persists decisions in Postgres,
+runs durable work through Inngest, and publishes reviewable pull requests plus Slack and
+Linear updates. It does not use fixtures when invoked by the deployed server.
 
 ```bash
 pnpm install
-pnpm seed:demo     # builds the corpus the gate reasons against (~15s)
-pnpm demo          # puts ten scenarios through the real gate
-pnpm demo:build    # runs ACCEPT through planning, review, code, sandbox QA + PR preview
-pnpm dev           # dashboard at http://localhost:3000
+cp .env.example .env.local   # fill credentials locally, or use Vercel environment variables
+pnpm db:push                 # apply the schema to the configured Postgres database
+pnpm integrations:check --strict
+pnpm dev                     # dashboard at http://localhost:3000
 ```
 
-`pnpm demo` is re-runnable: it clears the decisions from the previous run so the gate
-decides again and narrates every stage. Pass `--keep` to preserve them instead, which is
-what production does — a decision row is immutable, and re-deciding an event would
-double-spend the token budget and could post a duplicate comment.
+Configure the provider callbacks on the deployed origin:
 
-`pnpm demo` prints each stage as it happens — which deterministic rules fired, what retrieval found and from which source, the three weighted confidence components, which band rules applied, and every citation:
-
-```
-[1/5] Beat 1 — open with a rejection
-
-  EVENT  acme/api#1041   filed by @erin-external, trust=anonymous
-  title  Please add a GraphQL endpoint for sessions
-
-  STAGE 1 deterministic policy rules (free, instant, no model)
-    no rules fired
-
-  STAGE 2 retrieval before judgement — four sources, unioned
-    vector:7  lexical:2  git:2  decision:8   → 19 candidates, ~1648 tokens
-
-  DECISION  REJECT  at confidence 0.88  (human in the loop)
-    confidence = 0.5×0.91 self + 0.3×1.00 evidence + 0.2×0.60 policy
-    bands applied anonymous_no_autonomous_close
-
-  CITATIONS (every ref verified against what retrieval actually returned)
-    doc:adr-0007-no-graphql  [doc]
-      "we are not adding a GraphQL layer, decided 2026-06-12"
-
-  no ticket — this is one of the four refusals, which is the point
+```text
+/api/webhooks/github   signed GitHub issue, comment, and pull-request events
+/api/webhooks/slack    signed human-review actions
+/api/inngest           durable workflow functions
 ```
 
-That REJECT is the pitch in one screen. The request is reasonable, the filer is sincere, and building it would contradict a decision the team already made — so the gate declines and *quotes the decision with its date*. Every competitor would have started writing a GraphQL layer.
+Open `/integrations` to see the credential-safe runtime status. The CLI check performs
+read-only probes and creates no issues, messages, or pull requests. GitHub App credentials
+are preferred in production: Ascendant mints a repository-scoped installation token for
+each workflow invocation and never persists it or sends it into a sandbox.
 
-Run one scenario at a time with `pnpm demo graphql`, or add `--verbose` for the full candidate set. Narrative ids: `graphql` `duplicate` `no-repro` `ambiguous` `real-bug`; five additional `policy-*` cases prove zero-token short-circuiting. `pnpm eval` also includes two prompt-injection cases.
+The seeded corpus and replay scripts remain available for offline tests and CI only; they
+are not the judge-facing product path. See [`INTEGRATIONS.md`](./INTEGRATIONS.md) for the
+provider permissions and cutover checklist.
 
 ---
 

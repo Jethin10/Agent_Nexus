@@ -56,14 +56,13 @@ export async function resolveReview(
         })
         workflowNotified = true
       } catch {
-        // The DB row is authoritative. Local demos often have no Inngest server.
+        // The DB row is authoritative. A local development server may have no Inngest connection.
       }
     }
 
     revalidatePath(`/events/${eventId}`)
     revalidatePath('/')
     revalidatePath('/metrics')
-    revalidatePath('/demo')
 
     if (result.status === 'already_reviewed') {
       return { ok: true, message: `This event was already reviewed as ${result.outcome}.` }

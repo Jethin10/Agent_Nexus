@@ -260,7 +260,14 @@ export const triageFn = inngest.createFunction(
     // erasing the judgement or crashing the pipeline.
     await step.run('respond-at-source', async () => {
       const failures: string[] = []
-      const repo = await repoFromEnv()
+      let repo: Awaited<ReturnType<typeof repoFromEnv>>
+      try {
+        repo = await repoFromEnv()
+      } catch (err) {
+        // The immutable decision is already persisted. Authentication failure degrades
+        // the source response; it must not erase or repeatedly re-run the judgement.
+        failures.push(`GitHub authentication: ${err instanceof Error ? err.message : String(err)}`)
+      }
       if (repo && decided.source === 'github' && isConfiguredIssueRef(decided.sourceRef, repo)) {
         const writer = githubWriter(repo)
         try {

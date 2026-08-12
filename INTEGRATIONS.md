@@ -117,16 +117,23 @@ It runs in a temporary local directory and is **not an isolation boundary**. It 
 only the offline demo path. Never enable `ASCENDANT_ALLOW_LOCAL_SANDBOX=1` in a
 public deployment.
 
-## Honest end-to-end rehearsal
+## Production cutover
 
 ```bash
-pnpm seed:demo
-pnpm demo
-pnpm demo:build
-pnpm integrations:check
-pnpm dev
+pnpm db:push
+pnpm integrations:check --strict
+pnpm build
 ```
 
-Then open `/demo`, the ACCEPT audit timeline, `/metrics`, and `/policy`. Add
-`--publish` only after the dedicated GitHub demo repository is configured and the
-read-only integration check passes.
+After deployment, point GitHub, Slack, and Inngest at the signed endpoints listed above,
+then open `/integrations` and confirm every required connection is ready. Create a real,
+bounded issue in the configured repository and verify this journey:
+
+1. GitHub receives the webhook with a `2xx` response.
+2. The event and immutable decision appear in the Inbox and audit timeline.
+3. GitHub receives the decision comment and outcome label.
+4. An ACCEPT creates the Linear item and Slack thread, then runs planning, QA, and delivery.
+5. The resulting GitHub pull request is reviewable and is never auto-merged.
+
+The `seed:demo`, `demo`, and `demo:build` commands remain local test fixtures and are not
+part of the production showcase path.

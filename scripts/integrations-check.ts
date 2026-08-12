@@ -1,9 +1,9 @@
 import { linearWriter } from '@ascendant/connectors'
-import { repoClient, repoFromEnv } from '@ascendant/workflows'
+import { integrationReadiness, repoClient, repoFromEnv } from '@ascendant/workflows'
 
 interface Check {
   name: string
-  status: 'ready' | 'missing' | 'failed'
+  status: 'ready' | 'degraded' | 'missing' | 'failed'
   detail: string
 }
 
@@ -62,25 +62,15 @@ async function main() {
   }
   configured('Slack interactions', process.env.SLACK_SIGNING_SECRET, 'set SLACK_SIGNING_SECRET')
 
-  const providers = ['GROQ_API_KEY', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY'].filter((key) => process.env[key])
-  checks.push({
-    name: 'Live inference',
-    status: providers.length ? 'ready' : 'missing',
-    detail: providers.length
-      ? `${providers.map((key) => key.replace('_API_KEY', '')).join(' → ')} configured for server workflows`
-      : 'set at least one provider key',
-  })
-  checks.push({
-    name: 'Sandbox',
-    status: process.env.E2B_API_KEY || process.env.ASCENDANT_ALLOW_LOCAL_SANDBOX === '1' ? 'ready' : 'missing',
-    detail: process.env.E2B_API_KEY ? 'E2B configured' : process.env.ASCENDANT_ALLOW_LOCAL_SANDBOX === '1' ? 'local demo driver enabled (not isolated)' : 'set E2B_API_KEY; local is demo-only',
-  })
-  configured('Inngest', process.env.INNGEST_EVENT_KEY, 'set INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY')
-  configured('Dashboard gate', process.env.ASCENDANT_DASHBOARD_PASSWORD, 'required before deployment')
+  const configuration = integrationReadiness()
+  for (const id of ['database', 'models', 'sandbox', 'inngest', 'dashboard'] as const) {
+    const check = configuration.find((item) => item.id === id)
+    if (check) checks.push({ name: check.name, status: check.status, detail: check.detail })
+  }
 
   process.stdout.write('\nAscendant integration readiness\n\n')
   for (const check of checks) {
-    const mark = check.status === 'ready' ? '✓' : check.status === 'missing' ? '○' : '✗'
+    const mark = check.status === 'ready' ? '✓' : check.status === 'degraded' ? '△' : check.status === 'missing' ? '○' : '✗'
     process.stdout.write(`${mark} ${check.name.padEnd(22)} ${check.status.padEnd(7)} ${check.detail}\n`)
   }
   process.stdout.write('\nNo external records or messages were created by this check.\n')
