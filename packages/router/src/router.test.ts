@@ -164,6 +164,16 @@ describe('complete — happy path', () => {
     expect(calls[0]?.body.response_format).toEqual({ type: 'json_object' })
   })
 
+  it('excludes hidden OpenRouter reasoning so validated JSON lands in content', async () => {
+    const { fetcher, calls } = fakeFetch([ok({ outcome: 'REJECT', confidence: 0.9 })])
+    await complete(
+      { task: 'triage', schema: Schema, system: '', messages: [{ role: 'user', content: 'u' }] },
+      { env: { OPENROUTER_API_KEY: 'or-key' }, fetcher },
+    )
+    expect(calls[0]?.body.reasoning).toEqual({ exclude: true })
+    expect(calls[0]?.body.response_format).toEqual({ type: 'json_object' })
+  })
+
   it('recovers JSON wrapped in a fenced block without spending a retry', async () => {
     const { fetcher, calls } = fakeFetch([
       { ok: true, content: 'Here you go:\n```json\n{"outcome":"MERGE","confidence":0.8}\n```' },

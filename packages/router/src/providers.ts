@@ -131,7 +131,15 @@ async function openaiCompatible(
       messages,
       temperature: call.temperature,
       max_tokens: call.maxTokens,
-      ...(call.json ? { response_format: { type: 'json_object' } } : {}),
+      ...(call.json
+        ? {
+            response_format: { type: 'json_object' },
+            // Several reasoning-first OpenRouter models spend the whole output budget
+            // in a hidden reasoning field and return empty content. Excluding it is a
+            // provider-supported control and keeps the validated JSON in `content`.
+            ...(call.spec.provider === 'openrouter' ? { reasoning: { exclude: true } } : {}),
+          }
+        : {}),
     }),
     ...(call.signal ? { signal: call.signal } : {}),
   })

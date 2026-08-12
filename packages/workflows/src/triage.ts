@@ -1,4 +1,5 @@
 import {
+  applyHumanReview,
   db,
   decisionForEvent,
   finishRun,
@@ -7,7 +8,6 @@ import {
   loadPolicyContext,
   openTicketForAccept,
   recordOutcome,
-  recordOverturn,
   retrieveCandidates,
   startRun,
   threadBody,
@@ -18,6 +18,15 @@ import { triage } from '@ascendant/agents'
 import { NormalizedEvent, decide, type Candidate } from '@ascendant/core'
 import { inngest } from './events.js'
 import { flushTraces, openRun } from './runtime.js'
+import { githubWriter } from './github-write.js'
+import { repoFromEnv } from './repo.js'
+import {
+  createLinearWorkItem,
+  linearFromEnv,
+  notifySlack,
+  slackFromEnv,
+} from './notify.js'
+import { updateTicket } from './tickets.js'
 
 /**
  * Function 2 of 5 — `triage`. The thesis, wired up.
@@ -174,6 +183,11 @@ export const triageFn = inngest.createFunction(
           decidedByPolicy: result.decidedByPolicy,
           title: row.title,
           reasoning: result.reasoning,
+          citations: result.citations,
+          mergeTargetId: result.mergeTargetId ?? null,
+          missingInfo: result.missingInfo ?? [],
+          source: row.source,
+          sourceRef: row.sourceRef,
           degraded,
         }
       } catch (err) {
@@ -231,9 +245,55 @@ export const triageFn = inngest.createFunction(
           decidedByPolicy: false,
           title: row.title,
           reasoning: reason,
+          citations: decision.citations,
+          mergeTargetId: null,
+          missingInfo: [],
+          source: row.source,
+          sourceRef: row.sourceRef,
           degraded,
         }
       }
+    })
+
+    // Close the loop at the source. These are best-effort side effects: the immutable
+    // decision is already safe in Postgres, so a provider outage is traced rather than
+    // erasing the judgement or crashing the pipeline.
+    await step.run('respond-at-source', async () => {
+      const failures: string[] = []
+      const repo = repoFromEnv()
+      if (repo && decided.source === 'github' && isConfiguredIssueRef(decided.sourceRef, repo)) {
+        const writer = githubWriter(repo)
+        try {
+          await writer.comment(decided.sourceRef, githubDecisionComment(decided))
+          if (decided.outcome === 'REJECT' && decided.autonomous) {
+            await writer.closeIssue(decided.sourceRef, 'not_planned')
+          } else if (decided.outcome === 'MERGE' && decided.autonomous) {
+            await writer.closeIssue(decided.sourceRef, 'not_planned')
+          }
+          await writer.label(decided.sourceRef, [`ascendant:${decided.outcome.toLowerCase()}`])
+        } catch (err) {
+          failures.push(`GitHub: ${err instanceof Error ? err.message : String(err)}`)
+        }
+      }
+
+      if (decided.outcome === 'DEFER' || decided.outcome === 'ESCALATE') {
+        const slack = await notifySlack(slackFromEnv(), {
+          text: slackDecisionSummary(decided),
+          decisionId: decided.decisionId,
+        })
+        if (slack.status === 'failed') failures.push(`Slack: ${slack.reason}`)
+      }
+
+      await trace(db(), {
+        orgId,
+        runId: run.id,
+        agent: 'delivery',
+        phase: failures.length ? 'source_response_degraded' : 'source_responded',
+        summary: failures.length
+          ? `Decision persisted; ${failures.length} outbound action${failures.length > 1 ? 's' : ''} failed.`
+          : 'Source response completed or was not configured for this event.',
+        detail: { failures },
+      })
     })
 
     // ── ACCEPT is the only path into the work pipeline ─────────────────────────
@@ -249,6 +309,43 @@ export const triageFn = inngest.createFunction(
           statement: decided.reasoning,
         })
         return { id: t.id }
+      })
+
+      await step.run('connect-work-tracking', async () => {
+        const linear = await createLinearWorkItem(linearFromEnv(), {
+          title: decided.title,
+          description: decided.reasoning,
+          decisionId: decided.decisionId,
+        })
+        if (linear.status === 'ok') {
+          const detail = linear.detail as { id?: string; identifier?: string }
+          await updateTicket(db(), orgId, ticket.id, {
+            linearId: detail.id ?? null,
+            linearIdentifier: detail.identifier ?? null,
+          })
+        }
+
+        const slack = await notifySlack(slackFromEnv(), {
+          text: `*ACCEPT* — ${decided.title}\n${decided.reasoning}`,
+          decisionId: decided.decisionId,
+        })
+        if (slack.status === 'ok') {
+          const detail = slack.detail as { channel?: string; ts?: string }
+          await updateTicket(db(), orgId, ticket.id, {
+            slackChannel: detail.channel ?? null,
+            slackTs: detail.ts ?? null,
+          })
+        }
+
+        await trace(db(), {
+          orgId,
+          ticketId: ticket.id,
+          runId: run.id,
+          agent: 'orchestrator',
+          phase: 'work_tracking_connected',
+          summary: `Work tracking: Linear ${linear.status}, Slack ${slack.status}.`,
+          detail: { linear, slack },
+        })
       })
 
       await step.sendEvent('start-work', {
@@ -299,71 +396,26 @@ export const triageFn = inngest.createFunction(
         })
       })
 
-      /**
-       * A human turning a DEFER or ESCALATE into ACCEPT still has to go through the
-       * gate's door — `openTicketForAccept` refuses any decision that is not an
-       * ACCEPT — so a second decision row is written attributing the human, and the
-       * disagreement is recorded as an `overturns` row (§11.3).
-       *
-       * Re-emitting `triage/requested` would NOT work here: the new run's
-       * check-existing step would find this decision and return early. The human's
-       * judgement is the new evidence, so it is recorded rather than re-derived.
-       */
-      if (resolution && resolution.data.outcome !== decided.outcome) {
-        const escalated = await step.run('apply-human-decision', async () => {
-          const database = db()
-          await recordOverturn(database, {
-            orgId,
-            decisionId: decided.decisionId,
-            fromOutcome: decided.outcome,
-            toOutcome: resolution.data.outcome,
-            actor: resolution.data.actor,
-            reason: resolution.data.reason,
-          })
-
-          if (resolution.data.outcome !== 'ACCEPT') return null
-
-          const row = await getEvent(database, orgId, eventId)
-          const decision = await insertDecision(database, {
+      if (resolution) {
+        const reviewed = await step.run('apply-human-decision', () =>
+          applyHumanReview(db(), {
             orgId,
             eventId,
-            outcome: 'ACCEPT',
-            confidence: 1,
-            reasoning: `@${resolution.data.actor} reviewed Ascendant's ${decided.outcome} and accepted this as real work.${
-              resolution.data.reason ? ` They noted: ${resolution.data.reason}` : ''
-            }`,
-            citations: [
-              {
-                kind: 'ticket',
-                ref: `decision:${decided.decisionId}`,
-                quote: decided.reasoning.slice(0, 400),
-                why: `A human overturned this ${decided.outcome}.`,
-              },
-            ] as never,
-            policyHits: [],
-            /** A human decision is not an autonomous one: it is excluded from the
-             *  triage-precision denominator by construction. */
-            autonomous: false,
-            needsReview: false,
-            modelUsed: `human:${resolution.data.actor}`,
-          })
+            decisionId: decided.decisionId,
+            outcome: resolution.data.outcome,
+            actor: resolution.data.actor,
+            reason: resolution.data.reason,
+            surface: 'slack',
+          }),
+        )
 
-          const ticket = await openTicketForAccept(database, {
-            orgId,
-            decision,
-            title: row?.title ?? decided.title,
-            statement: decision.reasoning,
-          })
-          return { ticketId: ticket.id, decisionId: decision.id }
-        })
-
-        if (escalated) {
+        if (reviewed.ticketId && reviewed.outcome === 'ACCEPT') {
           await step.sendEvent('start-work', {
             name: 'work/accepted',
-            data: { orgId, ticketId: escalated.ticketId, decisionId: escalated.decisionId },
+            data: { orgId, ticketId: reviewed.ticketId, decisionId: reviewed.decisionId },
           })
           await step.run('close-run', () => finishRun(db(), orgId, run.id, 'succeeded'))
-          return { ...decided, ticketId: escalated.ticketId, humanAccepted: true }
+          return { ...decided, ticketId: reviewed.ticketId, humanAccepted: true }
         }
       }
     }
@@ -372,3 +424,57 @@ export const triageFn = inngest.createFunction(
     return decided
   },
 )
+
+interface OutboundDecision {
+  decisionId: string
+  title: string
+  outcome: 'ACCEPT' | 'REJECT' | 'MERGE' | 'DEFER' | 'ESCALATE'
+  confidence: number
+  reasoning: string
+  citations: readonly { ref: string; quote: string }[]
+  mergeTargetId: string | null
+  missingInfo: readonly string[]
+  autonomous: boolean
+}
+
+export function githubDecisionComment(decision: OutboundDecision): string {
+  const evidence = decision.citations
+    .map((c) => `- \`${c.ref}\`: “${c.quote}”`)
+    .join('\n')
+  const extras = [
+    decision.mergeTargetId ? `\n**Merge target:** \`${decision.mergeTargetId}\`` : '',
+    decision.missingInfo.length
+      ? `\n**Information needed:**\n${decision.missingInfo.map((q) => `- ${q}`).join('\n')}`
+      : '',
+  ].join('')
+  return [
+    `## Ascendant decision: ${decision.outcome}`,
+    '',
+    `${Math.round(decision.confidence * 100)}% confidence · ${decision.autonomous ? 'autonomous' : 'human review required'}`,
+    '',
+    decision.reasoning,
+    '',
+    '**Verified evidence**',
+    evidence || '- No external evidence was attached.',
+    extras,
+    '',
+    `Decision id: \`${decision.decisionId}\``,
+  ].join('\n')
+}
+
+export function slackDecisionSummary(decision: OutboundDecision): string {
+  const questions = decision.missingInfo.length
+    ? `\n${decision.missingInfo.map((q) => `• ${q}`).join('\n')}`
+    : ''
+  return `*${decision.outcome}* · ${Math.round(decision.confidence * 100)}% — ${decision.title}\n${decision.reasoning}${questions}`
+}
+
+/** Do not let a token for one repository mutate an issue from another repository. */
+export function isConfiguredIssueRef(
+  sourceRef: string,
+  repo: { owner: string; repo: string },
+): boolean {
+  if (!/#\d+$/.test(sourceRef)) return false
+  if (/^#\d+$/.test(sourceRef) || /^\d+$/.test(sourceRef)) return true
+  return sourceRef.toLowerCase().startsWith(`${repo.owner}/${repo.repo}#`.toLowerCase())
+}

@@ -215,6 +215,7 @@ describe('offline model — pipeline fixtures satisfy the real agent schemas', (
       system: 'CODE',
       messages: [{ role: 'user', content: 'x' }],
     })
+    expect(r.value.diff).toContain('diff --git a/')
     expect(r.value.diff).toContain('--- a/')
     expect(r.value.diff).toContain('+++ b/')
     expect(r.value.diff).toContain('@@')

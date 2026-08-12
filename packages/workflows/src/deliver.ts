@@ -278,7 +278,7 @@ export const deliverFn = inngest.createFunction(
 
       const linear = await notifyLinear(linearFromEnv(), {
         issueId: built.linearId,
-        stage: 'In Review',
+        stage: 'Done',
         comment: `${pushed.isDraft ? 'Draft PR' : 'PR'} #${pushed.number} is open: ${pushed.url}`,
       })
 
