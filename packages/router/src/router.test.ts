@@ -66,6 +66,13 @@ describe('models ladder', () => {
     expect(laddersFor('triage').map((m) => m.id)).not.toContain('groq/llama-3.1-8b')
   })
 
+  it('can classify through OpenRouter when Groq is not configured', () => {
+    expect(laddersFor('classify').map((m) => m.id)).toEqual([
+      'groq/llama-3.1-8b',
+      'openrouter/free',
+    ])
+  })
+
   it('routes the injection scan to prompt-guard alone', () => {
     expect(laddersFor('guard').map((m) => m.id)).toEqual(['groq/prompt-guard'])
   })
