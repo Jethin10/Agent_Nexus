@@ -17,15 +17,12 @@ import { embedEvent, eventsMissingProductionEmbedding } from './embeddings.js'
  * One cron, well inside Vercel's limit of 100. It runs at 05:00 UTC and does the four
  * things that genuinely cannot be event-driven:
  *
- * 1. Renews Gmail `users.watch` and Drive `changes.watch` channels, both of which
- *    expire in ≤7 days. A missed renewal is silent — the webhooks simply stop — so
- *    this is the one job whose failure has to be visible on the dashboard.
- * 2. Re-embeds anything whose embedding is missing, so a Gemini quota exhaustion
+ * 1. Re-embeds anything whose embedding is missing, so a Gemini quota exhaustion
  *    during ingest degrades retrieval temporarily rather than permanently.
- * 3. Rolls up yesterday's metrics and reports CU-hours, because Neon Free *suspends*
+ * 2. Rolls up yesterday's metrics and reports CU-hours, because Neon Free *suspends*
  *    compute for the rest of the billing month on exceeding a limit rather than
  *    throttling — the scariest failure mode on this stack (§13.1).
- * 4. Mines repeated Reviewer objections into repo conventions (§11.3).
+ * 3. Mines repeated Reviewer objections into repo conventions (§11.3).
  */
 export const maintenanceFn = inngest.createFunction(
   { id: 'maintenance', name: 'Daily maintenance', retries: 1 },
@@ -41,7 +38,11 @@ export const maintenanceFn = inngest.createFunction(
       typeof data === 'object' && data !== null && 'orgId' in data
         ? (data as { orgId?: string }).orgId
         : undefined
-    const orgId = fromEvent ?? process.env.ASCENDANT_ORG_ID ?? 'org_demo'
+    const configuredOrgId = process.env.ASCENDANT_ORG_ID
+    if (!fromEvent && !configuredOrgId && process.env.NODE_ENV === 'production') {
+      throw new Error('ASCENDANT_ORG_ID is required for scheduled production maintenance.')
+    }
+    const orgId = fromEvent ?? configuredOrgId ?? 'org_demo'
 
     const run = await step.run('open-run', async () => {
       const r = await startRun(db(), { orgId, fn: 'maintenance' })
@@ -127,22 +128,7 @@ export const maintenanceFn = inngest.createFunction(
       return mined
     })
 
-    /**
-     * Channel renewal is a no-op until the Google connectors are configured. It is
-     * traced either way: a renewal that silently never ran is exactly the failure this
-     * cron exists to prevent, so its absence has to be visible rather than assumed.
-     */
-    await step.run('renew-watches', async () => {
-      const configured = Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN)
-      await trace(db(), {
-        orgId,
-        runId: run.id,
-        agent: 'orchestrator',
-        phase: configured ? 'watches_renewed' : 'watches_skipped',
-        summary: configured
-          ? 'Renewed the Gmail and Drive push channels'
-          : 'No Google credentials are configured, so there are no watch channels to renew',
-      })
+    await step.run('finish-run', async () => {
       await finishRun(db(), orgId, run.id, 'succeeded')
     })
 

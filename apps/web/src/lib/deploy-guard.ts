@@ -55,6 +55,7 @@ export const REQUIRED_DEPLOYMENT_ENV = [
   'LINEAR_API_KEY',
   'LINEAR_TEAM_ID',
   'ASCENDANT_OPERATOR_NAME',
+  'ASCENDANT_ORG_ID',
 ] as const
 
 /** Core server data and workflow authentication must never degrade silently in a deploy. */
