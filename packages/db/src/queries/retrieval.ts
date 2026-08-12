@@ -253,7 +253,17 @@ export async function gitActivity(db: Db, q: GitActivityQuery): Promise<Candidat
       and(
         eq(events.orgId, q.orgId),
         gte(events.createdAt, since),
-        sql`${events.kind} in ('pr', 'doc')`,
+        sql`(
+          ${events.kind} = 'doc'
+          or (
+            ${events.kind} = 'pr'
+            and (
+              ${events.raw} #>> '{pull_request,merged}' = 'true'
+              or ${events.raw} #>> '{pull_request,merged_at}' is not null
+              or ${events.raw} #>> '{item,merged_at}' is not null
+            )
+          )
+        )`,
         sql`${events.extracted} -> 'symbols' ?| ${symbolArray}`,
         q.excludeEntityId ? ne(events.id, q.excludeEntityId) : undefined,
       ),

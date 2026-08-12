@@ -41,23 +41,24 @@ export async function resolveReview(
     })
 
     let workflowNotified = false
-    if (result.status !== 'already_reviewed') {
-      try {
-        await inngest.send({
-          name: 'human/resolved',
-          data: {
-            orgId,
-            eventId,
-            decisionId,
-            outcome: parsedOutcome.data,
-            actor,
-            ...(reason ? { reason } : {}),
-          },
-        })
-        workflowNotified = true
-      } catch {
-        // The DB row is authoritative. A local development server may have no Inngest connection.
-      }
+    try {
+      // Stable id makes a repeated submit a safe repair for "DB committed, Inngest
+      // unavailable" without creating duplicate workflow events.
+      await inngest.send({
+        id: `ascendant:human:${eventId}:${result.outcome}`,
+        name: 'human/resolved',
+        data: {
+          orgId,
+          eventId,
+          decisionId,
+          outcome: result.outcome,
+          actor,
+          ...(reason ? { reason } : {}),
+        },
+      })
+      workflowNotified = true
+    } catch {
+      // The DB row is authoritative. Repeating the review safely retries dispatch.
     }
 
     revalidatePath(`/events/${eventId}`)

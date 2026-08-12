@@ -33,6 +33,30 @@ afterEach(() => {
 })
 
 describe('dashboard auth', () => {
+  it('rejects cross-site dashboard mutations even with valid Basic auth', async () => {
+    const request = new NextRequest('http://localhost:3000/policy', {
+      method: 'POST',
+      headers: {
+        authorization: basic('operator', PASSWORD),
+        origin: 'https://attacker.example',
+        'sec-fetch-site': 'cross-site',
+      },
+    })
+    expect((await middleware(request)).status).toBe(403)
+  })
+
+  it('allows same-origin dashboard mutations with valid Basic auth', async () => {
+    const request = new NextRequest('http://localhost:3000/policy', {
+      method: 'POST',
+      headers: {
+        authorization: basic('operator', PASSWORD),
+        origin: 'http://localhost:3000',
+        'sec-fetch-site': 'same-origin',
+      },
+    })
+    expect((await middleware(request)).status).toBe(200)
+  })
+
   it('challenges an unauthenticated request', async () => {
     const res = await middleware(req('/policy'))
     expect(res.status).toBe(401)

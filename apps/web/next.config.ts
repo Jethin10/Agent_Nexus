@@ -1,5 +1,9 @@
 import type { NextConfig } from 'next'
-import { OPEN_DASHBOARD_ERROR, shouldBlockBuild } from './src/lib/deploy-guard'
+import {
+  OPEN_DASHBOARD_ERROR,
+  missingDeploymentRuntimeConfig,
+  shouldBlockBuild,
+} from './src/lib/deploy-guard'
 
 /**
  * Deployment guard for the dashboard password (B8), paired with `src/middleware.ts`.
@@ -12,6 +16,13 @@ import { OPEN_DASHBOARD_ERROR, shouldBlockBuild } from './src/lib/deploy-guard'
  */
 if (shouldBlockBuild(process.env)) {
   throw new Error(OPEN_DASHBOARD_ERROR)
+}
+const missingRuntime = missingDeploymentRuntimeConfig(process.env)
+if (missingRuntime.length > 0) {
+  throw new Error(
+    `Production runtime configuration is incomplete: ${missingRuntime.join(', ')}. ` +
+      'Deployments require durable Postgres plus signed Inngest publishing and execution.',
+  )
 }
 
 /**
@@ -49,6 +60,7 @@ const config: NextConfig = {
     '@neondatabase/serverless',
     '@electric-sql/pglite',
     '@electric-sql/pglite-pgvector',
+    'e2b',
   ],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },

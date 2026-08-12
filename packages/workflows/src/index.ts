@@ -1,6 +1,7 @@
 export * from './events.js'
 export * from './runtime.js'
 export * from './repo.js'
+export * from './embeddings.js'
 export * from './github-auth.js'
 export * from './github-write.js'
 export * from './notify.js'

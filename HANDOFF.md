@@ -613,6 +613,38 @@ repository. Relevant events are now rejected with 403 before persistence unless 
 issue, PR, or comment ref belongs to the configured repository. This deployment remains
 intentionally single-repository until installation identity is persisted per org.
 
+**D34 — production retrieval uses `gemini-embedding-001` with task-specific 768d vectors.**
+`text-embedding-004` is retired. New events are idempotently stored as
+`RETRIEVAL_DOCUMENT`, while the current triage text is embedded as `RETRIEVAL_QUERY`.
+The model name is stored beside every vector, and maintenance re-embeds missing or
+older-space rows in bounded batches. Provider failure remains an explicit retrieval
+degradation and cannot become a confident refusal. `pnpm corpus:sync` backfills real
+issues and merged PRs before first traffic.
+
+**D35 — only confirmed merged PRs count as “already fixed on main.”**
+Opened and closed-unmerged PRs remain useful event context but are excluded from
+`gitActivity`. A merged closure gets the immutable ref `<repo>!<n>:merged`, sharing the
+original PR thread without colliding with its opened row. Corpus sync uses that same ref.
+
+**D36 — production QA requires the pinned E2B SDK.**
+The `e2b` runtime dependency is installed and readiness requires `E2B_API_KEY`.
+GitHub Actions remains experimental behind `ASCENDANT_ALLOW_ACTIONS_SANDBOX=1`; its
+input path now refuses oversize payloads rather than truncating source code. Local
+execution remains development-only and never satisfies production readiness.
+
+**D37 — human mutations are authorized and replay-safe.**
+Slack decisions require an exact member id in `SLACK_REVIEWER_IDS`. Dashboard mutation
+requests must be same-origin in addition to valid Basic authentication. Human-resolution
+Inngest events carry stable ids, so repeating an already-persisted review repairs a
+failed dispatch without duplicating continuation.
+
+**D38 — deployed builds fail closed on the complete single-repo runtime contract.**
+Deployment markers require durable Postgres, signed Inngest keys, GitHub App and webhook,
+Gemini retrieval, E2B, Slack plus reviewer allowlist, Linear, and the dashboard gate.
+Local and CI builds remain credential-free. Maintenance marks non-triage runs stale after
+two hours; triage is excluded because it may legitimately wait 72 hours for a human.
+GitHub PR creation recovers an existing open PR after a retry-time 422.
+
 ---
 
 ## 6. Rules that must not be broken

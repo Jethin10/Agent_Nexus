@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { DEPLOY_MARKERS, isDeployment, shouldBlockBuild } from './deploy-guard.js'
+import {
+  DEPLOY_MARKERS,
+  isDeployment,
+  missingDeploymentRuntimeConfig,
+  shouldBlockBuild,
+} from './deploy-guard.js'
 
 /**
  * A guard that blocks the documented verification command is worse than no guard: it
@@ -51,6 +56,17 @@ describe('deploy guard', () => {
   it('does not treat CI as a deployment', () => {
     expect(isDeployment({ CI: 'true', GITHUB_ACTIONS: 'true' })).toBe(false)
     expect(shouldBlockBuild({ CI: 'true', GITHUB_ACTIONS: 'true' })).toBe(false)
+  })
+
+  it('requires durable database and signed workflow configuration only on deploys', () => {
+    expect(missingDeploymentRuntimeConfig({})).toEqual([])
+    expect(missingDeploymentRuntimeConfig({ VERCEL: '1' })).toEqual(
+      expect.arrayContaining(['DATABASE_URL', 'INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY', 'GITHUB_APP_ID', 'E2B_API_KEY']),
+    )
+    const complete = Object.fromEntries(
+      missingDeploymentRuntimeConfig({ VERCEL: '1' }).map((key) => [key, 'configured']),
+    )
+    expect(missingDeploymentRuntimeConfig({ VERCEL: '1', ...complete })).toEqual([])
   })
 
   it('recognises each supported hosting platform', () => {

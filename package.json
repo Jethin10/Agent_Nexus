@@ -20,6 +20,7 @@
     "demo": "tsx scripts/demo.ts",
     "demo:build": "tsx scripts/demo-build.ts",
     "integrations:check": "tsx scripts/integrations-check.ts",
+    "corpus:sync": "tsx scripts/sync-github-corpus.ts",
     "eval": "tsx scripts/eval.ts"
   },
   "devDependencies": {

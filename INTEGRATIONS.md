@@ -73,15 +73,18 @@ Enable interactivity with:
 https://<deployment>/api/webhooks/slack
 ```
 
-Set `SLACK_SIGNING_SECRET`. Ascendant verifies Slack's HMAC over the raw body and
-rejects timestamps older than five minutes. Review buttons persist a human outcome
+Set `SLACK_SIGNING_SECRET` and comma-separated Slack member IDs in
+`SLACK_REVIEWER_IDS`. Ascendant verifies Slack's HMAC over the raw body, rejects
+timestamps older than five minutes, and rejects reviewers outside that allowlist.
+Review buttons persist a human outcome
 or immutable overturn before emitting `human/resolved` to resume a parked Inngest
 run.
 
 ## Inngest and database
 
 Configure a Neon Postgres database with pgvector and apply the migration. Set
-`DATABASE_URL`, `INNGEST_EVENT_KEY`, and `INNGEST_SIGNING_KEY`. Serve functions at:
+`DATABASE_URL`, `INNGEST_EVENT_KEY`, and `INNGEST_SIGNING_KEY`. Deployed builds fail
+closed when durable database or signed workflow configuration is absent. Serve functions at:
 
 ```text
 https://<deployment>/api/inngest
@@ -107,7 +110,9 @@ but are explicitly labelled non-semantic.
 
 ## Sandbox
 
-Use `E2B_API_KEY` and an E2B template for isolated generated-code execution. The
+Use `E2B_API_KEY` and optionally an E2B template for isolated generated-code execution.
+The pinned `e2b` SDK ships with the runtime. Experimental Actions execution is disabled
+unless `ASCENDANT_ALLOW_ACTIONS_SANDBOX=1`; it does not satisfy production readiness. The
 local harness is deliberately explicit:
 
 ```bash
@@ -122,6 +127,7 @@ public deployment.
 
 ```bash
 pnpm db:push
+pnpm corpus:sync             # backfill real issues + merged PRs and semantic embeddings
 pnpm integrations:check --strict
 pnpm build
 ```

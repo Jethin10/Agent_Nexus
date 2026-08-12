@@ -27,6 +27,7 @@ import {
   slackFromEnv,
 } from './notify.js'
 import { updateTicket } from './tickets.js'
+import { embedEvent, embedText, eventEmbeddingContent } from './embeddings.js'
 
 /**
  * Function 2 of 5 — `triage`. The thesis, wired up.
@@ -129,9 +130,38 @@ export const triageFn = inngest.createFunction(
       let candidates: readonly Candidate[] = []
       let degraded: string[] = []
       if (!verdict.decided) {
-        const r = await retrieveCandidates(ctx.db, { orgId, event: normalized })
+        let queryVector: number[] | undefined
+        if (process.env.GEMINI_API_KEY) {
+          try {
+            // Store the event as a retrieval document, but search with a query vector.
+            // Google tunes those task types differently; mixing them weakens ranking.
+            await embedEvent(ctx.db, row, { apiKey: process.env.GEMINI_API_KEY })
+            queryVector = await embedText({
+              apiKey: process.env.GEMINI_API_KEY,
+              text: eventEmbeddingContent(row),
+              task: 'RETRIEVAL_QUERY',
+            })
+          } catch (err) {
+            degraded.push('embedding:provider')
+            await trace(ctx.db, {
+              orgId,
+              runId: run.id,
+              agent: 'triage',
+              phase: 'embedding_degraded',
+              summary: `Semantic retrieval unavailable: ${err instanceof Error ? err.message : String(err)}`,
+            })
+          }
+        } else {
+          degraded.push('embedding:not_configured')
+        }
+
+        const r = await retrieveCandidates(ctx.db, {
+          orgId,
+          event: normalized,
+          ...(queryVector ? { vec: queryVector, dim: 768 as const } : {}),
+        })
+        degraded.push(...r.degraded)
         candidates = r.candidates
-        degraded = r.degraded
         await trace(ctx.db, {
           orgId,
           runId: run.id,

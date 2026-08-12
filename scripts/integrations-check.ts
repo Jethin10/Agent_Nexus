@@ -1,5 +1,8 @@
 import { linearWriter } from '@ascendant/connectors'
-import { integrationReadiness, repoClient, repoFromEnv } from '@ascendant/workflows'
+import { e2bDriver } from '@ascendant/sandbox'
+import { db } from '@ascendant/db'
+import { sql } from 'drizzle-orm'
+import { embedText, integrationReadiness, repoClient, repoFromEnv } from '@ascendant/workflows'
 
 interface Check {
   name: string
@@ -61,12 +64,69 @@ async function main() {
     }
   }
   configured('Slack interactions', process.env.SLACK_SIGNING_SECRET, 'set SLACK_SIGNING_SECRET')
+  configured('Slack reviewers', process.env.SLACK_REVIEWER_IDS, 'set SLACK_REVIEWER_IDS')
 
   const configuration = integrationReadiness()
-  for (const id of ['database', 'models', 'sandbox', 'inngest', 'dashboard'] as const) {
+  for (const id of ['inngest', 'dashboard'] as const) {
     const check = configuration.find((item) => item.id === id)
     if (check) checks.push({ name: check.name, status: check.status, detail: check.detail })
   }
+
+  if (!process.env.DATABASE_URL) {
+    checks.push({ name: 'Database', status: 'missing', detail: 'set DATABASE_URL' })
+  } else {
+    try {
+      const result = await db().execute(sql`
+        select
+          exists(select 1 from pg_extension where extname = 'vector') as vector,
+          exists(select 1 from information_schema.tables where table_name = 'events') as migrated
+      `)
+      const row = (result as unknown as { rows?: { vector?: boolean; migrated?: boolean }[] }).rows?.[0]
+      if (!row?.vector || !row.migrated) throw new Error('database is reachable but pgvector or migrations are missing')
+      checks.push({ name: 'Database', status: 'ready', detail: 'Postgres, pgvector, and core schema verified' })
+    } catch (err) {
+      checks.push({ name: 'Database', status: 'failed', detail: message(err) })
+    }
+  }
+
+  if (!process.env.E2B_API_KEY) {
+    checks.push({ name: 'Sandbox', status: 'missing', detail: 'set E2B_API_KEY' })
+  } else if (!process.argv.includes('--strict')) {
+    checks.push({ name: 'Sandbox', status: 'ready', detail: 'E2B configured; use --strict for a live isolation probe' })
+  } else {
+    const driver = e2bDriver({
+      apiKey: process.env.E2B_API_KEY,
+      ...(process.env.E2B_TEMPLATE_ID ? { templateId: process.env.E2B_TEMPLATE_ID } : {}),
+    })
+    let handle: Awaited<ReturnType<typeof driver.create>> | undefined
+    try {
+      handle = await driver.create({ image: 'base', timeoutMs: 60_000, env: {} })
+      const result = await driver.exec(handle, ['node', '--version'], { timeoutMs: 30_000 })
+      if (result.exitCode !== 0) throw new Error(result.stderr || 'sandbox probe failed')
+      checks.push({ name: 'Sandbox', status: 'ready', detail: `E2B isolated execution verified (${result.stdout.trim()})` })
+    } catch (err) {
+      checks.push({ name: 'Sandbox', status: 'failed', detail: message(err) })
+    } finally {
+      if (handle) await driver.destroy(handle)
+    }
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    checks.push({ name: 'Semantic embeddings', status: 'missing', detail: 'set GEMINI_API_KEY' })
+  } else {
+    try {
+      const vector = await embedText({
+        apiKey: process.env.GEMINI_API_KEY,
+        text: 'Ascendant production readiness probe',
+        task: 'RETRIEVAL_QUERY',
+      })
+      checks.push({ name: 'Semantic embeddings', status: 'ready', detail: `${vector.length} dimensions verified` })
+    } catch (err) {
+      checks.push({ name: 'Semantic embeddings', status: 'failed', detail: message(err) })
+    }
+  }
+  const reasoning = configuration.find((item) => item.id === 'models')
+  if (reasoning) checks.push({ name: 'Live models', status: reasoning.status, detail: reasoning.detail })
 
   process.stdout.write('\nAscendant integration readiness\n\n')
   for (const check of checks) {

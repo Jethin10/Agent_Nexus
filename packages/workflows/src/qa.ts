@@ -70,6 +70,7 @@ export const qaFn = inngest.createFunction(
           GITHUB_OWNER: repo?.owner,
           GITHUB_REPO: repo?.repo,
           ACTIONS_WORKFLOW: process.env.ACTIONS_WORKFLOW,
+          ALLOW_ACTIONS: process.env.ASCENDANT_ALLOW_ACTIONS_SANDBOX === '1',
         })
       } catch (err) {
         /**

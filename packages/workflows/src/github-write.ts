@@ -146,17 +146,30 @@ export function githubWriter(opts: RepoClientOptions): GithubWriter {
         })
       }
 
-      const pr = (await call('/pulls', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: input.title,
-          body: input.body,
-          head: input.branch,
-          base: input.base,
-          /** Draft below the autonomy threshold. Never auto-merged, at any confidence. */
-          draft: input.draft,
-        }),
-      })) as { number: number; html_url: string; draft?: boolean }
+      let pr: { number: number; html_url: string; draft?: boolean }
+      try {
+        pr = (await call('/pulls', {
+          method: 'POST',
+          body: JSON.stringify({
+            title: input.title,
+            body: input.body,
+            head: input.branch,
+            base: input.base,
+            /** Draft below the autonomy threshold. Never auto-merged, at any confidence. */
+            draft: input.draft,
+          }),
+        })) as typeof pr
+      } catch (err) {
+        if (!(err instanceof RepoError) || err.status !== 422) throw err
+        // The previous attempt may have created the PR and died before Inngest stored
+        // the step result. Recover that PR rather than failing or opening another one.
+        const existing = (await call(
+          `/pulls?state=open&head=${encodeURIComponent(`${opts.owner}:${input.branch}`)}&base=${encodeURIComponent(input.base)}`,
+        )) as (typeof pr)[]
+        const first = existing[0]
+        if (!first) throw err
+        pr = first
+      }
 
       if (input.labels?.length) {
         await call(`/issues/${pr.number}/labels`, {

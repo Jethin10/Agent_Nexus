@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, lt, ne, sql } from 'drizzle-orm'
 import type { Db } from '../client'
 import { agentEvents, type AgentEventRow } from '../schema/agent-events'
 import { artifacts, type ArtifactRow } from '../schema/artifacts'
@@ -203,6 +203,31 @@ export async function finishRun(
       ...(extra.llmCalls !== undefined ? { llmCalls: extra.llmCalls } : {}),
     })
     .where(and(eq(runs.orgId, orgId), eq(runs.id, runId)))
+}
+
+/** Marks non-waiting workflow rows that never reached a terminal state. */
+export async function failStaleRuns(
+  db: Db,
+  orgId: string,
+  olderThan: Date,
+): Promise<RunRow[]> {
+  return db
+    .update(runs)
+    .set({
+      status: 'failed',
+      finishedAt: new Date(),
+      error: 'stale_run_reconciled',
+    })
+    .where(
+      and(
+        eq(runs.orgId, orgId),
+        eq(runs.status, 'running'),
+        // Triage may legitimately wait 72 hours for human/resolved.
+        ne(runs.fn, 'triage'),
+        lt(runs.startedAt, olderThan),
+      ),
+    )
+    .returning()
 }
 
 /**

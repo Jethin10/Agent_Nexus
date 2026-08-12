@@ -41,6 +41,8 @@ const GhPull = z
     created_at: z.string(),
     html_url: z.string().optional(),
     draft: z.boolean().optional(),
+    merged: z.boolean().optional(),
+    merged_at: z.string().nullable().optional(),
   })
   .passthrough()
 

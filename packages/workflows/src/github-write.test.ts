@@ -47,6 +47,30 @@ describe('githubWriter', () => {
     })
   })
 
+  it('recovers an already-created PR after an Inngest retry', async () => {
+    const replies: Response[] = [
+      response({ sha: 'blob-a' }),
+      response({ sha: 'tree-1' }),
+      response({ sha: 'commit-retry' }),
+      response(null),
+      response({ message: 'A pull request already exists' }, 422),
+      response([{ number: 9, html_url: 'https://github.test/pr/9', draft: false }]),
+    ]
+    const fetcher = vi.fn(async () => replies.shift()!) as unknown as typeof fetch
+
+    const result = await githubWriter({ owner: 'acme', repo: 'api', token: 'secret', fetcher }).openPr({
+      branch: 'ascendant/retry-safe', baseSha: 'base', base: 'main', commitMessage: 'safe retry',
+      files: [{ path: 'src/session.ts', content: 'fixed' }],
+      title: 'Fix safely', body: 'Audit body', draft: false,
+    })
+
+    expect(result).toMatchObject({ number: 9, commitSha: 'commit-retry', isDraft: false })
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('/pulls?state=open&head=acme%3Aascendant%2Fretry-safe&base=main'),
+      expect.any(Object),
+    )
+  })
+
   it('refuses protected paths at the credential-holding boundary', async () => {
     const fetcher = vi.fn() as unknown as typeof fetch
     await expect(githubWriter({ owner: 'acme', repo: 'api', token: 'secret', fetcher }).openPr({

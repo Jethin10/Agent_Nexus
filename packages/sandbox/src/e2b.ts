@@ -1,3 +1,4 @@
+import { Sandbox } from 'e2b'
 import { LIMITS } from '@ascendant/core'
 import {
   assertAlive,
@@ -20,10 +21,8 @@ import {
  * Primary driver: E2B. Firecracker microVM per sandbox, so a hostile `rm -rf /` or a
  * fork bomb costs a container rather than a machine.
  *
- * The SDK is loaded dynamically rather than imported at module scope. Two reasons:
- * the package is optional (the Actions and local drivers must work without it), and
- * `@ascendant/sandbox` is imported by the workflow bundle that Vercel deploys, where
- * pulling an unused SDK into the function is wasted cold-start time.
+ * The SDK is a pinned runtime dependency. A configured E2B key must never reach a
+ * deployment that only discovers at QA time that the isolation SDK was omitted.
  *
  * Config per §12.4: 2 vCPU, 2 GB RAM, 10-minute hard timeout, destroyed in a
  * `finally`. None of E2B's own limits bind here — 20 concurrent sandboxes and a
@@ -31,61 +30,11 @@ import {
  */
 export interface E2bDriverOptions {
   apiKey: string
-  /** Pre-baked template with node, pnpm, git and the demo repo's deps installed.
-   *  Pre-baking is what takes startup from ~90s to ~5s (§12.2 step 8). */
+  /** Optional pre-baked template with the target repository's toolchain installed. */
   templateId?: string
 }
 
-/** The subset of the E2B SDK this driver uses, so the dynamic import stays typed. */
-interface E2bSandbox {
-  sandboxId: string
-  files: {
-    write(path: string, data: string): Promise<unknown>
-    read(path: string): Promise<string>
-  }
-  commands: {
-    run(
-      cmd: string,
-      opts?: { cwd?: string; timeoutMs?: number; envs?: Record<string, string> },
-    ): Promise<{ exitCode: number; stdout: string; stderr: string }>
-  }
-  kill(): Promise<unknown>
-}
-
-interface E2bModule {
-  Sandbox: {
-    create(opts: {
-      apiKey: string
-      template?: string
-      timeoutMs?: number
-      envs?: Record<string, string>
-    }): Promise<E2bSandbox>
-  }
-}
-
-/**
- * The specifier is built at runtime rather than written as a literal. That is
- * deliberate, not a trick to dodge the compiler: `e2b` is an genuinely optional
- * dependency, and a literal `import('e2b')` makes `tsc` demand the package be
- * installed for the whole workspace to typecheck — which would couple the Actions
- * and local drivers to an SDK they never touch.
- *
- * The cost is that this call is untyped, which is why `E2bModule` above pins the
- * exact surface used and every access below goes through it.
- */
-const E2B_MODULE = 'e2b'
-
-async function loadE2b(): Promise<E2bModule> {
-  try {
-    const mod: unknown = await import(/* @vite-ignore */ /* webpackIgnore: true */ E2B_MODULE)
-    return mod as E2bModule
-  } catch {
-    throw new SandboxError(
-      'the e2b SDK is not installed; the workflow should fall back to the Actions driver',
-      'unavailable',
-    )
-  }
-}
+type E2bSandbox = Awaited<ReturnType<typeof Sandbox.create>>
 
 export function e2bDriver(opts: E2bDriverOptions): SandboxDriver {
   const sandboxes = new Map<string, E2bSandbox>()
@@ -101,7 +50,6 @@ export function e2bDriver(opts: E2bDriverOptions): SandboxDriver {
 
     async create(spec: SandboxSpec): Promise<Handle> {
       if (!opts.apiKey) throw new SandboxError('E2B_API_KEY is not set', 'unavailable')
-      const { Sandbox } = await loadE2b()
       const timeoutMs = Math.min(spec.timeoutMs, LIMITS.SANDBOX_TIMEOUT_MS)
 
       const sandbox = await Sandbox.create({

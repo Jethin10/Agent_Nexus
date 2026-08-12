@@ -33,13 +33,14 @@ export function integrationReadiness(
     env.OPENROUTER_API_KEY ? 'OpenRouter' : undefined,
     env.CEREBRAS_API_KEY ? 'Cerebras' : undefined,
   ].filter((provider): provider is string => Boolean(provider))
+  const semanticEmbeddings = Boolean(env.GEMINI_API_KEY)
 
   const inngestEvent = Boolean(env.INNGEST_EVENT_KEY)
   const inngestSigning = Boolean(env.INNGEST_SIGNING_KEY)
   const slackOutbound = has(env, 'SLACK_BOT_TOKEN', 'SLACK_CHANNEL_ID')
   const slackSigned = Boolean(env.SLACK_SIGNING_SECRET)
+  const slackReviewers = Boolean(env.SLACK_REVIEWER_IDS?.split(',').some((id) => id.trim()))
   const linear = has(env, 'LINEAR_API_KEY', 'LINEAR_TEAM_ID')
-  const actionsSandbox = githubRepo && githubAccess && Boolean(env.ACTIONS_WORKFLOW)
 
   return [
     {
@@ -82,20 +83,30 @@ export function integrationReadiness(
     {
       id: 'models',
       name: 'Live models',
-      status: modelProviders.length > 0 ? 'ready' : 'missing',
-      detail: modelProviders.length > 0
-        ? `${modelProviders.join(' → ')} available to server workflows.`
-        : 'At least one inference provider is required; server workflows never use fixtures.',
-      required: ['GROQ_API_KEY or GEMINI_API_KEY or OPENROUTER_API_KEY'],
+      status: modelProviders.length > 0 && semanticEmbeddings
+        ? 'ready'
+        : modelProviders.length > 0
+          ? 'degraded'
+          : 'missing',
+      detail: modelProviders.length > 0 && semanticEmbeddings
+        ? `${modelProviders.join(' → ')} available; Gemini semantic retrieval is enabled.`
+        : modelProviders.length > 0
+          ? `${modelProviders.join(' → ')} can reason, but GEMINI_API_KEY is required for semantic retrieval.`
+          : 'At least one inference provider plus Gemini embeddings is required; server workflows never use fixtures.',
+      required: ['GEMINI_API_KEY', 'GROQ_API_KEY or GEMINI_API_KEY or OPENROUTER_API_KEY'],
     },
     {
       id: 'slack',
       name: 'Slack',
-      status: slackOutbound && slackSigned ? 'ready' : slackOutbound || slackSigned ? 'degraded' : 'missing',
-      detail: slackOutbound && slackSigned
-        ? 'Channel notifications and signed human-review actions are configured.'
-        : 'Bot/channel access and the interaction signing secret are both required.',
-      required: ['SLACK_BOT_TOKEN', 'SLACK_CHANNEL_ID', 'SLACK_SIGNING_SECRET'],
+      status: slackOutbound && slackSigned && slackReviewers
+        ? 'ready'
+        : slackOutbound || slackSigned || slackReviewers
+          ? 'degraded'
+          : 'missing',
+      detail: slackOutbound && slackSigned && slackReviewers
+        ? 'Channel notifications and reviewer-authorized signed actions are configured.'
+        : 'Bot/channel access, signing secret, and an explicit reviewer allowlist are required.',
+      required: ['SLACK_BOT_TOKEN', 'SLACK_CHANNEL_ID', 'SLACK_SIGNING_SECRET', 'SLACK_REVIEWER_IDS'],
     },
     {
       id: 'linear',
@@ -109,15 +120,13 @@ export function integrationReadiness(
     {
       id: 'sandbox',
       name: 'Sandbox',
-      status: env.E2B_API_KEY ? 'ready' : actionsSandbox || env.ASCENDANT_ALLOW_LOCAL_SANDBOX === '1' ? 'degraded' : 'missing',
+      status: env.E2B_API_KEY ? 'ready' : env.ASCENDANT_ALLOW_LOCAL_SANDBOX === '1' ? 'degraded' : 'missing',
       detail: env.E2B_API_KEY
         ? 'E2B isolation is configured for generated-code execution.'
-        : actionsSandbox
-          ? 'GitHub Actions fallback is configured; E2B remains the isolated primary driver.'
-          : env.ASCENDANT_ALLOW_LOCAL_SANDBOX === '1'
+        : env.ASCENDANT_ALLOW_LOCAL_SANDBOX === '1'
             ? 'The local driver is enabled and must never be used in a public deployment.'
-            : 'Configure E2B isolation or the guarded GitHub Actions fallback.',
-      required: ['E2B_API_KEY (preferred) or ACTIONS_WORKFLOW with GitHub access'],
+            : 'Configure E2B isolation for generated-code execution.',
+      required: ['E2B_API_KEY'],
     },
     {
       id: 'dashboard',

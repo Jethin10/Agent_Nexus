@@ -67,6 +67,20 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl
   if (EXEMPT.some((p) => pathname.startsWith(p))) return NextResponse.next()
 
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    const origin = req.headers.get('origin')
+    const fetchSite = req.headers.get('sec-fetch-site')
+    if (
+      (origin && new URL(origin).host !== req.nextUrl.host) ||
+      fetchSite === 'cross-site'
+    ) {
+      return new NextResponse('Cross-site mutation rejected.', {
+        status: 403,
+        headers: { 'Cache-Control': 'no-store' },
+      })
+    }
+  }
+
   const expected = process.env.ASCENDANT_DASHBOARD_PASSWORD
   /**
    * Unset means local development, which is the common case for this repo: `pnpm dev`
