@@ -596,6 +596,13 @@ and primary documentation now starts from signed webhooks plus production readin
 hermetic tests, CI coverage, and outage recovery. Do not reconnect them to primary
 navigation or claim their fixture reasoning is a live server result.
 
+**D32 — every GitHub redelivery re-emits the same deterministic Inngest event id.**
+The database insert can succeed while `inngest.send()` fails. GitHub then retries, but
+the row already exists; sending only when `inserted === true` permanently stranded that
+event. The webhook now always sends `ascendant:event:<event uuid>`. Inngest deduplicates
+a successful first send, while a failed first send is repaired by the redelivery. The
+triage workflow's immutable decision check remains the downstream idempotency boundary.
+
 ---
 
 ## 6. Rules that must not be broken

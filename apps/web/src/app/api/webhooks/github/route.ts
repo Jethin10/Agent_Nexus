@@ -87,16 +87,17 @@ export async function POST(req: Request): Promise<Response> {
     accepted.push({ eventId: row.id, sourceRef: row.sourceRef, inserted })
 
     /**
-     * Only a genuinely new row starts a run. GitHub redelivers, so without this a
-     * redelivery would re-triage the same event, double-spend the token budget, and
-     * could post a duplicate comment on the issue.
+     * Send on every delivery, including a retry whose row already exists. The stable
+     * event id gives Inngest an idempotency key: if the first send succeeded it is
+     * deduplicated, while a failed first send can be repaired by GitHub's redelivery.
+     * Skipping `inserted === false` would strand a persisted event forever when the DB
+     * write succeeded but the first Inngest request failed.
      */
-    if (inserted) {
-      await inngest.send({
-        name: 'event/received',
-        data: { orgId, eventId: row.id, source: row.source, sourceRef: row.sourceRef },
-      })
-    }
+    await inngest.send({
+      id: `ascendant:event:${row.id}`,
+      name: 'event/received',
+      data: { orgId, eventId: row.id, source: row.source, sourceRef: row.sourceRef },
+    })
   }
 
   return json({ ok: true, events: accepted }, 202)
