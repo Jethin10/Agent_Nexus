@@ -211,6 +211,9 @@ importers:
       '@ascendant/agents':
         specifier: workspace:*
         version: link:../packages/agents
+      '@ascendant/connectors':
+        specifier: workspace:*
+        version: link:../packages/connectors
       '@ascendant/core':
         specifier: workspace:*
         version: link:../packages/core

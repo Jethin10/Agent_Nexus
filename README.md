@@ -29,7 +29,8 @@ No API keys, no Docker, no database, no network.
 ```bash
 pnpm install
 pnpm seed:demo     # builds the corpus the gate reasons against (~15s)
-pnpm demo          # puts five scenarios through the real gate
+pnpm demo          # puts ten scenarios through the real gate
+pnpm demo:build    # runs ACCEPT through planning, review, code, sandbox QA + PR preview
 pnpm dev           # dashboard at http://localhost:3000
 ```
 
@@ -65,7 +66,7 @@ double-spend the token budget and could post a duplicate comment.
 
 That REJECT is the pitch in one screen. The request is reasonable, the filer is sincere, and building it would contradict a decision the team already made — so the gate declines and *quotes the decision with its date*. Every competitor would have started writing a GraphQL layer.
 
-Run one scenario at a time with `pnpm demo graphql`, or add `--verbose` for the full candidate set. Scenario ids: `graphql` `duplicate` `no-repro` `ambiguous` `real-bug`.
+Run one scenario at a time with `pnpm demo graphql`, or add `--verbose` for the full candidate set. Narrative ids: `graphql` `duplicate` `no-repro` `ambiguous` `real-bug`; five additional `policy-*` cases prove zero-token short-circuiting. `pnpm eval` also includes two prompt-injection cases.
 
 ---
 
@@ -148,7 +149,7 @@ packages/
   db/              Drizzle schema, 10 tables, pgvector helpers         (23 files)
   router/          LLM cascade: budget, retries, schema repair          (7 files)
   agents/          all 8 agents, each a pure fn (ctx) => output         (7 files)
-  connectors/      GitHub (built); Linear/Slack/Google planned          (5 files)
+  connectors/      GitHub + outbound Linear/Slack; Google planned
   sandbox/         E2B, GitHub Actions and local drivers                (7 files)
   workflows/       Inngest functions — the ONLY layer that does I/O    (13 files)
 scripts/           seed + demo runner + offline model
@@ -226,7 +227,7 @@ Two things are simulated when no keys are set, and both are labelled as such eve
 
 ```bash
 pnpm install              # pnpm@9.15.4, pinned
-pnpm test                 # 401 tests
+pnpm test                 # 440+ tests
 pnpm -r typecheck         # 9 workspace projects
 pnpm eval                 # score the gate against labelled scenarios
 pnpm build
@@ -238,8 +239,8 @@ refusals**, which is ACCEPT-labelled work the gate turned away. That last number
 broken out on purpose: nobody ever sees a REJECT that should have been an ACCEPT, which
 is what makes it worse than the reverse. It exits non-zero on any miss, so CI gates on it.
 
-This is a labelled smoke test, not the 60-issue set §11.2 calls for — five scenarios, one
-per outcome. The harness and the scoring are real; the set needs to grow.
+This is a labelled smoke test, not the 60-issue set §11.2 calls for — twelve scenarios
+covering every outcome, deterministic policies, and injection attempts. The harness and the scoring are real; the set needs to grow.
 
 CI runs typecheck, tests, seed, eval and build on every push, all with **no secrets
 configured**, because the offline path is a real code path rather than a fallback. If
@@ -248,20 +249,21 @@ anything in that pipeline needs a key to pass, that is a bug.
 A passing typecheck is **not** sufficient before deploying — webpack resolves module paths differently from `tsc`, and several real bugs here were invisible to both until the code actually ran.
 
 <details>
-<summary><strong>Test coverage</strong> — 401 tests across 23 files</summary>
+<summary><strong>Test coverage</strong> — 440+ tests across the monorepo</summary>
 
 | Suite | Tests |
 |---|---|
-| core: policy / confidence / candidates / normalize / prompt / diff / extract | 24 / 20 / 17 / 22 / 19 / 29 / 10 |
+| core: policy / confidence / candidates / normalize / prompt / diff / extract | 24 / 20 / 17 / 22 / 22 / 29 / 13 |
 | core: triage schema tolerance | 6 |
 | db: retrieval against real Postgres | 18 |
-| router: cascade, repair, budget, guard | 34 |
+| router: cascade, repair, budget, guard | 36 |
 | agents: triage / pipeline / delivery | 18 / 19 / 26 |
 | sandbox: guards + local driver | 33 |
-| workflows: applyDiff + repo client | 16 |
-| connectors: github | 22 |
+| workflows: repo, GitHub writer, integration notification, source response | 16 / 2 / 13 / 3 |
+| connectors: github / Linear / Slack | 22 / 9 / 8 |
 | scripts: offline model / embedder / demo mode / scenario reset | 20 / 6 / 6 / 5 |
 | web: replay schedule / dashboard auth / deploy guard | 10 / 10 / 8 |
+| db: inbox + persisted human review | 3 / 2 |
 
 The db suite runs the four retrieval queries against a real Postgres via PGlite. Their correctness lives in SQL — pgvector's `<=>`, `ts_rank`, the jsonb `?|` overlap — all invisible to `tsc`.
 
@@ -277,13 +279,13 @@ This system reads untrusted text from the internet and then writes code. That is
 
 > Layers 1 and 2 reduce the rate; layer 3 bounds the damage. A defence that depends on the model not being fooled is not a defence.
 
-**The sandbox holds no secrets.** Agent-generated code never runs on Vercel, never on your laptop, and never with network access to your own infrastructure. The git push happens *outside* the sandbox, from the workflow, after the diff is read back out.
+**The sandbox holds no secrets.** Agent-generated code never runs on Vercel, never on your laptop, and never with network access to your own infrastructure. The production git push happens *outside* the sandbox, from the workflow, after the diff is read back out. The explicit local demo driver is not an isolation boundary and is labelled accordingly.
 
 > The sandbox produces a diff; it never has the credentials to publish one.
 
 **Webhooks are verified before parsing**, with `timingSafeEqual` over the raw body. **No auto-merge, ever** — a human approves every merge.
 
-**The dashboard is gated** by a shared secret in `apps/web/src/middleware.ts`, because `/policy` writes the autonomy threshold that `band()` reads on every decision — an open dashboard is a privilege escalation on the pipeline, not just a data leak. Comparison is over fixed-width SHA-256 digests, so it is length-independent in the Edge runtime, where `node:crypto` is unavailable. The two webhook routes are exempt: they authenticate by HMAC over the raw body, which is stronger than a password, and GitHub cannot send an `Authorization` header at all. A production build **fails** when the secret is unset, which is the moment the dashboard stops being localhost-only.
+**The dashboard is gated** by a shared secret in `apps/web/src/middleware.ts`, because `/policy` writes the autonomy threshold that `band()` reads on every decision — an open dashboard is a privilege escalation on the pipeline, not just a data leak. Comparison is over fixed-width SHA-256 digests, so it is length-independent in the Edge runtime, where `node:crypto` is unavailable. The GitHub and Slack webhook routes are exempt: both authenticate by HMAC over the raw body, which is stronger than a dashboard password; the Inngest route uses Inngest request signing. A production build **fails** when the secret is unset, which is the moment the dashboard stops being localhost-only.
 
 ---
 
@@ -299,16 +301,18 @@ The gate runs end to end. What is built, and what isn't:
 | ✅ 8 agents + 3 sandbox drivers | |
 | ✅ Offline path: seed, runner, replay | no keys required |
 | ✅ Dashboard auth | shared-secret gate; a real deploy refuses to build without it |
-| ✅ `pnpm eval` on 5 labelled scenarios | accuracy, autonomous precision, false refusals — 5/5, no keys needed |
-| ✅ CI on every push | typecheck, 401 tests, seed, eval, build — all with zero secrets |
-| ⬜ GitHub delivery built; Linear + Slack | planned |
-| ⬜ Connectors beyond GitHub | planned |
-| ⬜ Scale the eval set to 60 issues | the harness is written and runs; it needs 55 more labelled issues. Until then the honest headline is 5/5, and the 91.7% on Metrics is computed off seeded history rather than labels |
+| ✅ `pnpm eval` on 12 labelled smoke scenarios | five outcomes, five policy cases, two injection cases — no keys needed |
+| ✅ CI on every push | typecheck, 440+ tests, seed, eval, build — all with zero secrets |
+| ✅ GitHub delivery + refusal responses | requires a configured demo repository |
+| ✅ Linear work-item mirror + stage updates | requires Linear credentials |
+| ✅ Slack notifications + signed human actions | requires a Slack app and signing secret |
+| ⬜ Inbound connectors beyond GitHub | planned |
+| ⬜ Scale the eval set to 60 issues | the harness is written; 12 smoke scenarios exist today. Metrics uses seeded operational history, not the labelled eval. |
 
 ### What this deliberately cannot do
 
 - **Multi-repo or large refactors.** `MAX_FILES_TOUCHED = 12`; anything larger ESCALATEs by design. This is a bounded-work system, not an autonomous engineer.
-- **Anything without a test signal.** No tests means QA can only lint and typecheck, and confidence is capped so it never auto-acts.
+- **Anything without a test signal.** No tests means QA is inconclusive and the change cannot be presented as verified.
 - **UI and visual work.** No screenshot diffing; frontend tickets ESCALATE unless they are pure logic.
 - **Architecture decisions.** The Planner refuses plans that add a dependency or change a public API contract, and writes a proposal for a human instead.
 - **Replace an engineering team.** It removes triage toil and closes small, well-specified, test-covered tickets. That is a smaller claim than the alternative and a far more defensible one.
@@ -319,5 +323,6 @@ The gate runs end to end. What is built, and what isn't:
 
 - **[`PLAN.md`](./PLAN.md)** — the full spec: architecture, free-tier economics, edge cases, threat model
 - **[`HANDOFF.md`](./HANDOFF.md)** — living status: what is proven, decisions log with the reasoning behind each, open blockers
+- **[`INTEGRATIONS.md`](./INTEGRATIONS.md)** — credential-safe setup for GitHub, Linear, Slack, Inngest, models, and sandboxing
 
 The decisions log is worth reading before changing anything. It records choices a future contributor could plausibly reverse by accident — including four bugs that a clean typecheck and 309 passing tests could not catch, three of which failed *silently*.

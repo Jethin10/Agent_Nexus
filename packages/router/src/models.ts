@@ -116,7 +116,17 @@ export const MODELS: readonly ModelSpec[] = [
     tpm: 20_000,
     tpd: 100_000,
     latencyMs: 5_000,
-    capability: { triage: 0.8, plan: 0.78, review: 0.78, qa: 0.75, code: 0.75, summarize: 0.75 },
+    capability: {
+      triage: 0.8,
+      plan: 0.78,
+      review: 0.78,
+      qa: 0.75,
+      code: 0.75,
+      summarize: 0.75,
+      // OpenRouter is also the live fallback for the pipeline's small routing
+      // classification when a Groq key is not configured.
+      classify: 0.72,
+    },
   },
   {
     id: 'cerebras/llama-3.3-70b',

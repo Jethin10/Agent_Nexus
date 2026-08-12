@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { notifyLinear, notifySlack } from './notify.js'
+import { createLinearWorkItem, notifyLinear, notifySlack } from './notify.js'
 import type { LinearWriter, SlackWriter } from '@ascendant/connectors'
 
 const decisionId = 'dec_1'
@@ -79,6 +79,27 @@ describe('notifySlack', () => {
     const res = await notifySlack(w, { text: 'x', decisionId })
 
     expect(res).toEqual({ status: 'failed', reason: 'channel_not_found' })
+  })
+})
+
+describe('createLinearWorkItem', () => {
+  it('creates the issue at ACCEPT and returns the remote identity', async () => {
+    const w = linearStub({
+      createIssue: vi.fn().mockResolvedValue({ id: 'lin_1', identifier: 'ENG-42', url: 'https://linear.app/i/42' }),
+    })
+    const res = await createLinearWorkItem(w, {
+      title: 'Fix sessions',
+      description: 'Accepted by the gate.',
+      decisionId,
+    })
+    expect(w.createIssue).toHaveBeenCalledWith(expect.objectContaining({ decisionId }))
+    expect(res).toMatchObject({ status: 'ok', detail: { id: 'lin_1', identifier: 'ENG-42' } })
+  })
+
+  it('degrades when Linear is not configured', async () => {
+    await expect(createLinearWorkItem(undefined, {
+      title: 'x', description: 'y', decisionId,
+    })).resolves.toEqual({ status: 'skipped', reason: 'linear not configured' })
   })
 })
 

@@ -66,6 +66,13 @@ describe('models ladder', () => {
     expect(laddersFor('triage').map((m) => m.id)).not.toContain('groq/llama-3.1-8b')
   })
 
+  it('can classify through OpenRouter when Groq is not configured', () => {
+    expect(laddersFor('classify').map((m) => m.id)).toEqual([
+      'groq/llama-3.1-8b',
+      'openrouter/free',
+    ])
+  })
+
   it('routes the injection scan to prompt-guard alone', () => {
     expect(laddersFor('guard').map((m) => m.id)).toEqual(['groq/prompt-guard'])
   })
@@ -161,6 +168,16 @@ describe('complete — happy path', () => {
       { task: 'triage', schema: Schema, system: '', messages: [{ role: 'user', content: 'u' }] },
       { env, fetcher },
     )
+    expect(calls[0]?.body.response_format).toEqual({ type: 'json_object' })
+  })
+
+  it('excludes hidden OpenRouter reasoning so validated JSON lands in content', async () => {
+    const { fetcher, calls } = fakeFetch([ok({ outcome: 'REJECT', confidence: 0.9 })])
+    await complete(
+      { task: 'triage', schema: Schema, system: '', messages: [{ role: 'user', content: 'u' }] },
+      { env: { OPENROUTER_API_KEY: 'or-key' }, fetcher },
+    )
+    expect(calls[0]?.body.reasoning).toEqual({ exclude: true })
     expect(calls[0]?.body.response_format).toEqual({ type: 'json_object' })
   })
 

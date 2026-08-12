@@ -70,11 +70,12 @@ export default async function MetricsPage() {
             </p>
           </Panel>
 
-          <Panel title="Cost today">
-            <div className="stat">${'0.00'}</div>
+          <Panel title="Inference today">
+            <div className="stat">{spend.calls}</div>
             <p className="small dim" style={{ margin: '2px 0 0' }}>
-              {spend.tokens.toLocaleString()} tokens · {spend.calls} model calls. Everything
-              runs on free tiers; the binding constraint is Groq&apos;s requests-per-day.
+              {spend.tokens.toLocaleString()} metered tokens across persisted model calls.
+              Provider billing is not estimated: configured free tiers and fixture calls have
+              different prices, and fixtures correctly record zero usage.
             </p>
           </Panel>
         </div>

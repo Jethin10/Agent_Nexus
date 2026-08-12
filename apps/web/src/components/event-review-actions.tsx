@@ -1,29 +1,71 @@
 'use client'
 
-import { useState } from 'react'
+import { useActionState } from 'react'
+import type { TriageOutcome } from '@ascendant/core'
+import {
+  resolveReview,
+  type ReviewActionState,
+} from '@/app/events/[id]/actions'
 
-export function EventReviewActions() {
-  const [decision, setDecision] = useState<'approve' | 'clarify' | 'reject' | null>(null)
+export function EventReviewActions({
+  eventId,
+  decisionId,
+  outcome,
+}: {
+  eventId: string
+  decisionId: string
+  outcome: TriageOutcome
+}) {
+  const [state, action, pending] = useActionState<ReviewActionState | null, FormData>(
+    resolveReview,
+    null,
+  )
 
-  if (decision) {
+  if (state?.ok) {
     return (
       <div className="event-action-result" role="status">
         <span>✓</span>
         <div>
-          <strong>{decision === 'approve' ? 'Approved and dispatched' : decision === 'clarify' ? 'More context requested' : 'Recommendation rejected'}</strong>
-          <p>{decision === 'approve' ? 'The owner task, source updates, and audit entry are ready.' : 'The review was recorded in the audit trail.'}</p>
+          <strong>Human review persisted</strong>
+          <p>{state.message}</p>
         </div>
-        <button type="button" onClick={() => setDecision(null)}>Undo demo action</button>
       </div>
     )
   }
 
   return (
-    <div className="event-review-actions" aria-label="Review actions">
-      <button type="button" className="primary" onClick={() => setDecision('approve')}>Approve & dispatch</button>
-      <button type="button" onClick={() => setDecision('clarify')}>Ask for context</button>
-      <button type="button" onClick={() => setDecision('reject')}>Reject</button>
-      <small>Demo action · no external messages are sent</small>
-    </div>
+    <form action={action} className="event-review-form" aria-label="Review this decision">
+      <input type="hidden" name="eventId" value={eventId} />
+      <input type="hidden" name="decisionId" value={decisionId} />
+      <label>
+        <span>Reviewer note</span>
+        <input
+          name="reason"
+          placeholder="Why are you confirming or changing this decision?"
+          maxLength={1_000}
+        />
+      </label>
+      <div className="event-review-actions">
+        <button type="submit" name="outcome" value={outcome} className="primary" disabled={pending}>
+          Confirm {label(outcome)}
+        </button>
+        {outcome !== 'ACCEPT' && (
+          <button type="submit" name="outcome" value="ACCEPT" disabled={pending}>
+            Override to accept
+          </button>
+        )}
+        {outcome !== 'REJECT' && (
+          <button type="submit" name="outcome" value="REJECT" disabled={pending}>
+            Override to reject
+          </button>
+        )}
+        <small>A confirmation writes an outcome; an override writes an immutable overturn.</small>
+      </div>
+      {state && !state.ok && <p className="action-error" role="alert">{state.message}</p>}
+    </form>
   )
+}
+
+function label(outcome: TriageOutcome): string {
+  return outcome.charAt(0) + outcome.slice(1).toLowerCase()
 }

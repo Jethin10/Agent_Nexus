@@ -13,6 +13,7 @@ import { inngest } from './events.js'
 import { flushTraces, openRun } from './runtime.js'
 import { applyDiff, repoClient, repoFromEnv } from './repo.js'
 import { ticketById, updateTicket } from './tickets.js'
+import { linearFromEnv, notifyLinear, notifySlack, slackFromEnv } from './notify.js'
 
 /**
  * Function 4 of 5 — `qa`. Runs the tests in a sandbox and asks the QA agent what the
@@ -194,6 +195,23 @@ export const qaFn = inngest.createFunction(
       })
       return { ticketId, status: 'tests_failed', failures: tested.failures }
     }
+
+    await step.run('notify-review-ready', async () => {
+      const ticket = await ticketById(db(), orgId, ticketId)
+      const [linear, slack] = await Promise.all([
+        notifyLinear(linearFromEnv(), { issueId: ticket.linearId, stage: 'In Review' }),
+        notifySlack(slackFromEnv(), {
+          text: `*QA ${tested.verdict.toUpperCase()}* — ${ticket.title}\nThe diff is ready for delivery.`,
+          ts: ticket.slackTs,
+          decisionId: ticket.decisionId,
+        }),
+      ])
+      await trace(db(), {
+        orgId, ticketId, runId: run.id, agent: 'qa', phase: 'review_ready_notified',
+        summary: `Review ready; Linear ${linear.status}, Slack ${slack.status}.`,
+        detail: { linear, slack },
+      })
+    })
 
     await step.sendEvent('request-delivery', {
       name: 'delivery/ready',

@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@ascendant/agents": "workspace:*",
+    "@ascendant/connectors": "workspace:*",
     "@ascendant/core": "workspace:*",
     "@ascendant/db": "workspace:*",
     "@ascendant/router": "workspace:*",

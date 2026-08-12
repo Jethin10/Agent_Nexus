@@ -346,7 +346,8 @@ function planFixture(): Record<string, unknown> {
  */
 function codeFixture(): Record<string, unknown> {
   return {
-    diff: `--- a/src/session.ts
+    diff: `diff --git a/src/session.ts b/src/session.ts
+--- a/src/session.ts
 +++ b/src/session.ts
 @@ -1,8 +1,12 @@
  export interface Session {
@@ -360,6 +361,7 @@ function codeFixture(): Record<string, unknown> {
 +  if (session.expiresAt <= Date.now()) return null
    return session.id
  }
+diff --git a/src/session.test.ts b/src/session.test.ts
 --- a/src/session.test.ts
 +++ b/src/session.test.ts
 @@ -1,10 +1,20 @@

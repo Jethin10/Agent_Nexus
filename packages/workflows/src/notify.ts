@@ -32,6 +32,22 @@ export type NotifyResult =
   | { status: 'skipped'; reason: string }
   | { status: 'failed'; reason: string }
 
+export async function createLinearWorkItem(
+  writer: LinearWriter | undefined,
+  args: { title: string; description: string; decisionId: string },
+): Promise<NotifyResult> {
+  if (!writer) return { status: 'skipped', reason: 'linear not configured' }
+  try {
+    const issue = await writer.createIssue(args)
+    return {
+      status: 'ok',
+      detail: { id: issue.id, identifier: issue.identifier, url: issue.url },
+    }
+  } catch (err) {
+    return { status: 'failed', reason: reason(err) }
+  }
+}
+
 function reason(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
 }

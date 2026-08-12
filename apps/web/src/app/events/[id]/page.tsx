@@ -50,11 +50,12 @@ export default async function EventPage({ params }: Props) {
 
     // A triage that never opened a ticket still has a trace, keyed by run rather than
     // ticket — four of five outcomes end there, so this is the common case.
-    const timeline = ticket?.id
-      ? await ticketTrace(database, orgId, ticket.id)
-      : decision
-        ? await traceForDecisionRun(database, orgId, id)
-        : []
+    const timeline = decision
+      ? mergeTimelineRows(
+          await traceForDecisionRun(database, orgId, id),
+          ...(ticket?.id ? [await ticketTrace(database, orgId, ticket.id)] : []),
+        )
+      : []
 
     return (
       <>
@@ -157,7 +158,18 @@ export default async function EventPage({ params }: Props) {
             )}
 
             <div className="event-review-divider" />
-            <EventReviewActions />
+            {decision.modelUsed.startsWith('human:') ? (
+              <p className="small muted">
+                Human review sealed by <span className="mono">{decision.modelUsed.slice(6)}</span>.
+                The original decision remains in the immutable audit trail.
+              </p>
+            ) : (
+              <EventReviewActions
+                eventId={event.id}
+                decisionId={decision.id}
+                outcome={decision.outcome}
+              />
+            )}
           </Panel>
         ) : (
           <Panel title="The decision">
@@ -261,4 +273,11 @@ async function traceForDecisionRun(
   const ids = await runsForEvent(database, orgId, eventId)
   const all = await Promise.all(ids.map((rid) => runTrace(database, orgId, rid)))
   return all.flat().sort((a, b) => a.at.getTime() - b.at.getTime())
+}
+
+/** Triage rows are run-scoped; build rows are ticket-scoped. ACCEPT needs both. */
+function mergeTimelineRows<T extends { id: string; at: Date }>(...groups: T[][]): T[] {
+  const rows = new Map<string, T>()
+  for (const group of groups) for (const row of group) rows.set(row.id, row)
+  return [...rows.values()].sort((a, b) => a.at.getTime() - b.at.getTime())
 }

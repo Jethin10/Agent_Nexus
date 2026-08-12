@@ -179,7 +179,17 @@ export async function inbox(
       prUrl: tickets.prUrl,
     })
     .from(events)
-    .leftJoin(decisions, eq(decisions.eventId, events.id))
+    // Human review can append a corrected decision for the same event. Joining on
+    // event_id alone would duplicate the inbox row and surface the stale judgement.
+    .leftJoin(
+      decisions,
+      sql`${decisions.id} = (
+        select latest.id from decisions latest
+        where latest.event_id = ${events.id}
+        order by latest.created_at desc, latest.id desc
+        limit 1
+      )`,
+    )
     .leftJoin(tickets, eq(tickets.eventId, events.id))
     .where(
       and(
