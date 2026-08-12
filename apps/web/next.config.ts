@@ -85,12 +85,9 @@ const config: NextConfig = {
     return config
   },
 
-  /** Turbopack resolves the same aliases, for `next dev --turbo`. On 15.1 this key
-   *  lives under `experimental`; it moved to top-level `turbopack` in 15.3. */
-  experimental: {
-    turbo: {
-      resolveExtensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json'],
-    },
+  /** Turbopack resolves the same aliases for `next dev --turbo`. */
+  turbopack: {
+    resolveExtensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json'],
   },
 }
 

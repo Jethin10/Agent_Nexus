@@ -646,6 +646,8 @@ Deployment markers require durable Postgres, signed Inngest keys, GitHub App and
 Gemini retrieval, E2B, Slack plus reviewer allowlist, Linear, and the dashboard gate.
 Local and CI builds remain credential-free. Maintenance marks non-triage runs stale after
 two hours; triage is excluded because it may legitimately wait 72 hours for a human.
+The production dependency baseline is Next 15.5.21, Inngest 3.54.0, Drizzle ORM 0.45.2,
+TypeScript 5.8.3, and Zod 3.25.76; `pnpm audit --prod --audit-level high` is clean.
 GitHub PR creation recovers an existing open PR after a retry-time 422. Decision comments
 are content-idempotent, GitHub source-response failures retry safely, and post-PR Slack/
 Linear failures now fail their isolated Inngest step so notification delivery retries
