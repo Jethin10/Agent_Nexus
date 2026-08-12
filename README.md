@@ -256,10 +256,10 @@ A passing typecheck is **not** sufficient before deploying — webpack resolves 
 | core: policy / confidence / candidates / normalize / prompt / diff / extract | 24 / 20 / 17 / 22 / 22 / 29 / 13 |
 | core: triage schema tolerance | 6 |
 | db: retrieval against real Postgres | 18 |
-| router: cascade, repair, budget, guard | 34 |
+| router: cascade, repair, budget, guard | 36 |
 | agents: triage / pipeline / delivery | 18 / 19 / 26 |
 | sandbox: guards + local driver | 33 |
-| workflows: repo, integration notification, source response | 16 / 13 / 3 |
+| workflows: repo, GitHub writer, integration notification, source response | 16 / 2 / 13 / 3 |
 | connectors: github / Linear / Slack | 22 / 9 / 8 |
 | scripts: offline model / embedder / demo mode / scenario reset | 20 / 6 / 6 / 5 |
 | web: replay schedule / dashboard auth / deploy guard | 10 / 10 / 8 |

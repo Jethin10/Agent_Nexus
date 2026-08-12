@@ -12,9 +12,10 @@ Use `pnpm integrations:check --strict` before recording or deploying.
 
 ## GitHub
 
-Create a dedicated public demo repository whose default branch contains the small
-session fixture used by `pnpm demo:build` (`src/session.ts` and
-`src/session.test.ts`). Configure a GitHub App with:
+The public fixture is [`Jethin10/ascendant-demo-api`](https://github.com/Jethin10/ascendant-demo-api),
+whose default branch contains the small session fixture used by `pnpm demo:build`
+(`src/session.ts` and `src/session.test.ts`). Its first guarded delivery is visible as
+[PR #1](https://github.com/Jethin10/ascendant-demo-api/pull/1). Configure a GitHub App with:
 
 - Repository metadata: read
 - Issues: read/write
