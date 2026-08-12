@@ -39,6 +39,19 @@ function emptyMatrix(): ConfusionMatrix {
  * Recording an overturn does not mutate the decision — decisions are immutable, and
  * an audit trail you can edit is not an audit trail.
  */
+export async function overturnForDecision(
+  db: Db,
+  orgId: string,
+  decisionId: string,
+): Promise<OverturnRow | undefined> {
+  const rows = await db
+    .select()
+    .from(overturns)
+    .where(and(eq(overturns.orgId, orgId), eq(overturns.decisionId, decisionId)))
+    .limit(1)
+  return rows[0]
+}
+
 export async function recordOverturn(
   db: Db,
   input: {

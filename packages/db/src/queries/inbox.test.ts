@@ -3,7 +3,7 @@ import { normalize, type RawEvent } from '@ascendant/core'
 import { applyMigrations, makeLocalDb, type LocalDbHandle } from '../local'
 import type { Db } from '../client'
 import { insertEvent } from './events'
-import { inbox } from './decisions'
+import { inbox, insertDecision } from './decisions'
 
 const ORG = 'org_inbox_test'
 
@@ -52,5 +52,42 @@ describe('inbox query', () => {
 
     expect(oldest[0]?.sourceRef).toBe('acme/api#1')
     expect(newest[0]?.sourceRef).toBe('acme/api#3')
+  })
+
+  it('returns only the latest immutable decision after a human correction', async () => {
+    const rows = await inbox(database, ORG, { query: 'Middle issue' })
+    const middle = rows[0]
+    if (!middle) throw new Error('middle event missing')
+
+    const base = {
+      orgId: ORG,
+      eventId: middle.eventId,
+      confidence: 0.7,
+      citations: [{ kind: 'doc' as const, ref: 'doc:test', quote: 'evidence', why: 'test' }],
+      policyHits: [] as string[],
+      autonomous: false,
+      needsReview: false,
+      tokens: 0,
+      latencyMs: 0,
+    }
+    await insertDecision(database, {
+      ...base,
+      outcome: 'ESCALATE',
+      reasoning: 'Model asked for a human.',
+      modelUsed: 'fixture:triage',
+    })
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    await insertDecision(database, {
+      ...base,
+      outcome: 'ACCEPT',
+      confidence: 1,
+      reasoning: 'Human accepted it.',
+      modelUsed: 'human:reviewer',
+    })
+
+    const corrected = await inbox(database, ORG, { query: 'Middle issue' })
+    expect(corrected).toHaveLength(1)
+    expect(corrected[0]?.outcome).toBe('ACCEPT')
+    expect(corrected[0]?.modelUsed).toBe('human:reviewer')
   })
 })

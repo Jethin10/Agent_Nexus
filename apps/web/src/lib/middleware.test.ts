@@ -82,7 +82,7 @@ describe('dashboard auth', () => {
    * all, so gating the webhook would break ingestion rather than secure it.
    */
   it('exempts the signature-authenticated routes', async () => {
-    for (const path of ['/api/webhooks/github', '/api/inngest']) {
+    for (const path of ['/api/webhooks/github', '/api/webhooks/slack', '/api/inngest']) {
       expect((await middleware(req(path))).status).toBe(200)
     }
   })
