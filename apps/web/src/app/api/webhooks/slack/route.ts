@@ -5,7 +5,6 @@ import {
   slackBasestring,
   slackTimestampFresh,
 } from '@ascendant/connectors'
-import { inngest } from '@ascendant/workflows'
 import { currentOrgId } from '@/lib/org'
 import { ensureDb } from '@/lib/local-db'
 import { slackReviewerAllowed } from '@/lib/slack-auth'
@@ -68,33 +67,12 @@ export async function POST(req: Request): Promise<Response> {
     surface: 'slack',
   })
 
-  let workflowNotified = false
-  try {
-    await inngest.send({
-      id: `ascendant:human:${event.id}:${result.outcome}`,
-      name: 'human/resolved',
-      data: {
-        orgId,
-        eventId: event.id,
-        decisionId,
-        outcome: result.outcome,
-        actor,
-        reason,
-      },
-    })
-    workflowNotified = true
-  } catch {
-    // The durable audit row is stored; clicking again safely retries this stable id.
-  }
-
   return json({
     response_type: 'ephemeral',
     replace_original: false,
     text: result.status === 'already_reviewed'
       ? `Ascendant already recorded this event as ${result.outcome}.`
-      : workflowNotified
-        ? `Ascendant recorded ${result.outcome} from @${actor} and resumed the workflow.`
-        : `Ascendant recorded ${result.outcome} from @${actor}; workflow continuation is pending.`,
+      : `Ascendant recorded ${result.outcome} from @${actor} and queued durable workflow continuation.`,
   }, 200)
 }
 

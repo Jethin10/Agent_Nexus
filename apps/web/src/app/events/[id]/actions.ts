@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { TriageOutcome } from '@ascendant/core'
 import { applyHumanReview, db } from '@ascendant/db'
-import { inngest } from '@ascendant/workflows'
 import { ensureDb } from '@/lib/local-db'
 import { currentOrgId } from '@/lib/org'
 
@@ -40,27 +39,6 @@ export async function resolveReview(
       surface: 'dashboard',
     })
 
-    let workflowNotified = false
-    try {
-      // Stable id makes a repeated submit a safe repair for "DB committed, Inngest
-      // unavailable" without creating duplicate workflow events.
-      await inngest.send({
-        id: `ascendant:human:${eventId}:${result.outcome}`,
-        name: 'human/resolved',
-        data: {
-          orgId,
-          eventId,
-          decisionId,
-          outcome: result.outcome,
-          actor,
-          ...(reason ? { reason } : {}),
-        },
-      })
-      workflowNotified = true
-    } catch {
-      // The DB row is authoritative. Repeating the review safely retries dispatch.
-    }
-
     revalidatePath(`/events/${eventId}`)
     revalidatePath('/')
     revalidatePath('/metrics')
@@ -70,9 +48,7 @@ export async function resolveReview(
     }
     return {
       ok: true,
-      message: workflowNotified
-        ? `Review persisted and the workflow was notified: ${result.outcome}.`
-        : `Review persisted: ${result.outcome}. Workflow continuation is pending because Inngest is not connected.`,
+      message: `Review persisted and queued for durable workflow continuation: ${result.outcome}.`,
     }
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : 'The review could not be recorded.' }

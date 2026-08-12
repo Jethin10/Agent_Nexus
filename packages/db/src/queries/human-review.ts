@@ -120,7 +120,7 @@ export async function applyHumanReview(
     kind: 'human_overridden',
     correct: true,
     note: `${original.outcome} → ${input.outcome} by ${input.actor}.`,
-    meta: { originalDecisionId: original.id, surface: input.surface },
+    meta: { originalDecisionId: original.id, actor: input.actor, surface: input.surface },
   })
 
   return {
