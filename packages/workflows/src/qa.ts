@@ -248,7 +248,6 @@ function combine(r: { stdout: string; stderr: string; timedOut: boolean }): stri
 function collectPaths(planJson: string | undefined, diff: string): string[] {
   const paths = new Set<string>([
     'package.json',
-    'pnpm-lock.yaml',
     'tsconfig.json',
     'vitest.config.ts',
   ])

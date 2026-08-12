@@ -290,12 +290,14 @@ export const triageFn = inngest.createFunction(
     // erasing the judgement or crashing the pipeline.
     await step.run('respond-at-source', async () => {
       const failures: string[] = []
+      let githubFailed = false
       let repo: Awaited<ReturnType<typeof repoFromEnv>>
       try {
         repo = await repoFromEnv()
       } catch (err) {
         // The immutable decision is already persisted. Authentication failure degrades
         // the source response; it must not erase or repeatedly re-run the judgement.
+        githubFailed = true
         failures.push(`GitHub authentication: ${err instanceof Error ? err.message : String(err)}`)
       }
       if (repo && decided.source === 'github' && isConfiguredIssueRef(decided.sourceRef, repo)) {
@@ -309,6 +311,7 @@ export const triageFn = inngest.createFunction(
           }
           await writer.label(decided.sourceRef, [`ascendant:${decided.outcome.toLowerCase()}`])
         } catch (err) {
+          githubFailed = true
           failures.push(`GitHub: ${err instanceof Error ? err.message : String(err)}`)
         }
       }
@@ -331,6 +334,11 @@ export const triageFn = inngest.createFunction(
           : 'Source response completed or was not configured for this event.',
         detail: { failures },
       })
+      if (githubFailed) {
+        // GitHub comments are content-idempotent and labels/closes are idempotent, so
+        // Inngest can safely retry this step after an API outage.
+        throw new Error(failures.filter((failure) => failure.startsWith('GitHub')).join('; '))
+      }
     })
 
     // ── ACCEPT is the only path into the work pipeline ─────────────────────────

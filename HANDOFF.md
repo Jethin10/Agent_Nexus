@@ -634,16 +634,20 @@ execution remains development-only and never satisfies production readiness.
 
 **D37 — human mutations are authorized and replay-safe.**
 Slack decisions require an exact member id in `SLACK_REVIEWER_IDS`. Dashboard mutation
-requests must be same-origin in addition to valid Basic authentication. Human-resolution
-Inngest events carry stable ids, so repeating an already-persisted review repairs a
-failed dispatch without duplicating continuation.
+requests must be same-origin in addition to valid Basic authentication, and audit rows
+use the configured `ASCENDANT_OPERATOR_NAME`. Human-resolution Inngest events carry
+stable ids, so repeating an already-persisted review repairs a failed dispatch without
+duplicating continuation.
 
 **D38 — deployed builds fail closed on the complete single-repo runtime contract.**
 Deployment markers require durable Postgres, signed Inngest keys, GitHub App and webhook,
 Gemini retrieval, E2B, Slack plus reviewer allowlist, Linear, and the dashboard gate.
 Local and CI builds remain credential-free. Maintenance marks non-triage runs stale after
 two hours; triage is excluded because it may legitimately wait 72 hours for a human.
-GitHub PR creation recovers an existing open PR after a retry-time 422.
+GitHub PR creation recovers an existing open PR after a retry-time 422. Decision comments
+are content-idempotent, GitHub source-response failures retry safely, and post-PR Slack/
+Linear failures now fail their isolated Inngest step so notification delivery retries
+without recreating the PR.
 
 ---
 

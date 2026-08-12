@@ -83,7 +83,7 @@ export interface RunTestsInput {
  */
 export async function runTests(input: RunTestsInput): Promise<TestRunResult> {
   const spec = { ...DEFAULT_SPEC, ...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}) }
-  const install = input.installCommand ?? ['pnpm', 'install', '--frozen-lockfile', '--offline']
+  const install = input.installCommand ?? ['pnpm', 'install', '--no-frozen-lockfile', '--ignore-scripts']
 
   const baseline = await inSandbox(input.driver, spec, async (h) => {
     await input.driver.writeFiles(h, input.baselineFiles)

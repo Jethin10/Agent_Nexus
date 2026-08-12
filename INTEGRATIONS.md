@@ -125,6 +125,10 @@ public deployment.
 
 ## Production cutover
 
+Set `ASCENDANT_DASHBOARD_PASSWORD` and a stable audit identity in
+`ASCENDANT_OPERATOR_NAME`. Deployment builds reject incomplete production configuration
+instead of silently exposing partial integrations.
+
 ```bash
 pnpm db:push
 pnpm corpus:sync             # backfill real issues + merged PRs and semantic embeddings

@@ -54,6 +54,7 @@ export const REQUIRED_DEPLOYMENT_ENV = [
   'SLACK_REVIEWER_IDS',
   'LINEAR_API_KEY',
   'LINEAR_TEAM_ID',
+  'ASCENDANT_OPERATOR_NAME',
 ] as const
 
 /** Core server data and workflow authentication must never degrade silently in a deploy. */

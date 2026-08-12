@@ -190,7 +190,10 @@ export function githubWriter(opts: RepoClientOptions): GithubWriter {
     },
 
     async comment(issueRef: string, body: string): Promise<void> {
-      await call(`/issues/${issueNumber(issueRef)}/comments`, {
+      const number = issueNumber(issueRef)
+      const existing = (await call(`/issues/${number}/comments?per_page=100`)) as { body?: string }[]
+      if (existing.some((comment) => comment.body === body)) return
+      await call(`/issues/${number}/comments`, {
         method: 'POST',
         body: JSON.stringify({ body }),
       })

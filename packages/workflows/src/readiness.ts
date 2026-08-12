@@ -131,17 +131,17 @@ export function integrationReadiness(
     {
       id: 'dashboard',
       name: 'Dashboard gate',
-      status: env.ASCENDANT_DASHBOARD_PASSWORD
+      status: env.ASCENDANT_DASHBOARD_PASSWORD && env.ASCENDANT_OPERATOR_NAME
         ? 'ready'
         : env.ASCENDANT_ALLOW_OPEN_DASHBOARD === '1'
           ? 'degraded'
           : 'missing',
-      detail: env.ASCENDANT_DASHBOARD_PASSWORD
-        ? 'The operational dashboard is protected by the configured shared secret.'
+      detail: env.ASCENDANT_DASHBOARD_PASSWORD && env.ASCENDANT_OPERATOR_NAME
+        ? `The operational dashboard is protected and actions are attributed to ${env.ASCENDANT_OPERATOR_NAME}.`
         : env.ASCENDANT_ALLOW_OPEN_DASHBOARD === '1'
           ? 'The dashboard was deliberately left open; do not use this in production.'
           : 'Production builds require an authenticated dashboard.',
-      required: ['ASCENDANT_DASHBOARD_PASSWORD'],
+      required: ['ASCENDANT_DASHBOARD_PASSWORD', 'ASCENDANT_OPERATOR_NAME'],
     },
   ]
 }

@@ -71,6 +71,18 @@ describe('githubWriter', () => {
     )
   })
 
+  it('does not duplicate an identical decision comment on retry', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response([{ body: 'Decision id: `dec-1`' }])) as unknown as typeof fetch
+    const writer = githubWriter({ owner: 'acme', repo: 'api', token: 'secret', fetcher })
+    await writer.comment('acme/api#42', 'Decision id: `dec-1`')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.stringContaining('/issues/42/comments?per_page=100'),
+      expect.any(Object),
+    )
+  })
+
   it('refuses protected paths at the credential-holding boundary', async () => {
     const fetcher = vi.fn() as unknown as typeof fetch
     await expect(githubWriter({ owner: 'acme', repo: 'api', token: 'secret', fetcher }).openPr({

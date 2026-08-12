@@ -28,6 +28,7 @@ describe('integrationReadiness', () => {
       LINEAR_TEAM_ID: 'team-id',
       E2B_API_KEY: 'e2b-secret',
       ASCENDANT_DASHBOARD_PASSWORD: 'dashboard-secret',
+      ASCENDANT_OPERATOR_NAME: 'Jethin10',
     })
 
     expect(Object.values(checks).every((check) => check.status === 'ready')).toBe(true)

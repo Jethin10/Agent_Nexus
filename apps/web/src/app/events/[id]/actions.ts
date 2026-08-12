@@ -26,7 +26,7 @@ export async function resolveReview(
   }
 
   const orgId = currentOrgId()
-  const actor = 'dashboard-reviewer'
+  const actor = process.env.ASCENDANT_OPERATOR_NAME ?? 'local-dashboard-operator'
 
   try {
     await ensureDb()
