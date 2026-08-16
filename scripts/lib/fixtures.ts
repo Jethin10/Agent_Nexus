@@ -144,6 +144,7 @@ Planner refuses plans that add one; those become an ESCALATE with a proposal ins
   }),
   gh({
     sourceRef: 'granola:2026-06-12-arch-review',
+    source: 'granola',
     kind: 'meeting_note',
     actor: { id: '101', handle: 'bob', isBot: false },
     createdAt: daysAgo(49),
@@ -159,6 +160,7 @@ picked it up.`,
   }),
   gh({
     sourceRef: 'granola:2026-07-02-triage-sync',
+    source: 'granola',
     kind: 'meeting_note',
     actor: { id: '100', handle: 'alice', isBot: false },
     createdAt: daysAgo(29),
@@ -166,6 +168,35 @@ picked it up.`,
     body: `Reviewed the last month of inbound issues. Roughly a third were duplicates
 of #412 or of each other, and several were questions rather than bugs. Agreed that
 support questions should be redirected to discussions rather than opened as issues.`,
+  }),
+  gh({
+    source: 'slack',
+    sourceRef: 'slack:C-DEMO:1720175400.000100',
+    threadKey: 'slack:C-DEMO:1720175400.000100',
+    kind: 'message',
+    actor: { id: 'U-CAROL', handle: 'carol', isBot: false },
+    createdAt: daysAgo(12),
+    title: 'Production session failures after token expiry',
+    body: `Seeing the same \`TypeError: cannot read 'id' of undefined\` in production.
+The trace points to \`getSessionId\` in \`apps/api/src/session.ts:88\`. This started
+after v2.3.1 and seems limited to expired tokens. I linked the original #412 thread.`,
+  }),
+  gh({
+    source: 'gmail',
+    sourceRef: 'gmail:demo-session-thread-1',
+    threadKey: 'gmail:demo-session-thread',
+    kind: 'email',
+    actor: { id: 'customer@example.com', handle: 'Priya Customer', isBot: false },
+    createdAt: daysAgo(10),
+    title: 'Session API error with expired tokens',
+    body: `Hi team,
+
+Our API client on v2.3.1 fails when a session token expires. The log contains
+\`TypeError: cannot read 'id' of undefined\` from \`getSessionId\`. It is reproducible
+by waiting for a token to expire and calling the session endpoint again.
+
+Thanks,
+Priya`,
   }),
 ]
 

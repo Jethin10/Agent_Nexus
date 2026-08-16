@@ -53,7 +53,7 @@ Nothing is cut, only sequenced. Steps 1-3 alone are a defensible submission;
 | 4 | Inngest workflows + LLM router | **done** (6 functions, router, budget) |
 | 5 | Planner/Coder/Reviewer/QA + E2B sandbox | **done** (8 agents, 3 drivers) |
 | 6 | Delivery: PR + Linear + Slack | **done** — real API paths, signed Slack actions, GitHub App tokens |
-| 7 | Remaining inbound connectors (Gmail/GCal/Drive/Granola) | todo |
+| 7 | Remaining inbound connectors | Gmail + Slack **done**; GCal/Drive/Granola todo |
 | 8 | Learning loop + eval set + metrics | queries + views **done**; `pnpm eval` **written and passing 5/5** — the set needs growing to 60 |
 | 9 | Security layers 1-4 hardening | all 4 layers **done**; dashboard auth **done** (B8 closed) |
 | 10 | Offline test fixtures and replay fallback | **done**; retired from the product navigation |
@@ -70,7 +70,8 @@ pnpm dev         four views rendering that data at localhost:3000
 ```
 
 Verification state right now: `pnpm -r typecheck` clean across all **9** workspace
-projects, `pnpm test` = **363 passing**, and `next build` compiles all 7 routes.
+projects, `pnpm test` = **489 passing**, and `next build` compiles the dashboard,
+ledger, signed webhooks, local JSON bridge, and all workflow routes.
 
 | suite | tests |
 |---|---|
@@ -653,6 +654,15 @@ are content-idempotent, GitHub source-response failures retry safely, and post-P
 Linear failures now fail their isolated Inngest step so notification delivery retries
 without recreating the PR.
 
+**D39 — conversation context is bounded, read-only, and visible before work starts.**
+Gmail imports require `gmail.readonly` OAuth and an explicit query (default
+`label:ascendant newer_than:30d`); Slack imports require an allowlisted channel and
+ignore bot messages. Both retain stable provider ids, collapse replies by thread, and
+enter the same normalize/persist/dispatch path as GitHub. `/ledger` and event source
+threads make the evidence visible to judges. Local PGlite views read through authenticated
+JSON routes because loading PGlite's WASM inside a Next React Server Component can make
+the response ArrayBuffer non-detachable; deployed Neon remains server-rendered.
+
 ---
 
 ## 6. Rules that must not be broken
@@ -976,4 +986,3 @@ Pinned versions worth knowing, all chosen to avoid a workspace-wide bump:
 `next@15.1.6` with `react@19.0.0`, `typescript@5.7.3`, `zod@3.24.1`,
 `drizzle-orm@0.38.4`. `e2b` is deliberately **not** installed — it is loaded through
 a runtime-built specifier so the Actions and local drivers work without it.
-

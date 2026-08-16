@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./github": "./src/github/index.ts",
+    "./gmail": "./src/gmail/index.ts",
     "./slack": "./src/slack/index.ts",
     "./linear": "./src/linear/index.ts"
   },

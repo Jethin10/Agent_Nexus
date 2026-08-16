@@ -3,7 +3,9 @@ import { TriageOutcome, type TriageOutcome as Outcome } from '@ascendant/core'
 import { db, inbox } from '@ascendant/db'
 import { DbError } from '@/components/bits'
 import { currentOrgId } from '@/lib/org'
-import { ensureDb } from '@/lib/local-db'
+import { ensureDb, isLocalDb } from '@/lib/local-db'
+import { LocalInboxClient } from '@/components/local-dashboard'
+import { LiveRefresh } from '@/components/live-refresh'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +24,7 @@ type InboxRow = Awaited<ReturnType<typeof inbox>>[number]
 const OUTCOMES: Outcome[] = ['ACCEPT', 'REJECT', 'MERGE', 'DEFER', 'ESCALATE']
 
 export default async function InboxPage({ searchParams }: Props) {
+  if (isLocalDb()) return <LocalInboxClient />
   const params = await searchParams
   const orgId = currentOrgId()
   const outcome = TriageOutcome.safeParse(params.outcome)
@@ -53,6 +56,7 @@ export default async function InboxPage({ searchParams }: Props) {
   return (
     <div className="inbox-workspace">
       <header className="workspace-toolbar">
+        <LiveRefresh />
         <Link className="runtime-launch" href="/integrations">
           <span className="runtime-launch-dot" />
           Runtime status
@@ -200,7 +204,7 @@ function DecisionInspector({ row, closeHref }: { row: InboxRow; closeHref: strin
       <section className="inspector-section">
         <h3>Evidence</h3>
         <EvidenceItem icon={<SourceMark source={row.source} large />} title={sourceLabel(row.source)}>
-          {row.sourceRef} · @{row.actorHandle}
+          {row.sourceRef} · @{row.actorHandle} · {row.bodyPreview.slice(0, 180) || 'empty body'}
         </EvidenceItem>
         <EvidenceItem icon={<QuoteIcon />} title="Decision rationale">
           {row.reasoning || 'Awaiting enough context to make a decision.'}
@@ -288,6 +292,8 @@ function sourceLabel(source: string): string {
   if (source.toLowerCase().includes('github')) return 'GitHub'
   if (source.toLowerCase().includes('linear')) return 'Linear'
   if (source.toLowerCase().includes('slack')) return 'Slack'
+  if (source.toLowerCase().includes('gmail')) return 'Gmail'
+  if (source.toLowerCase().includes('granola')) return 'Granola'
   return source.charAt(0).toUpperCase() + source.slice(1)
 }
 
@@ -295,7 +301,7 @@ function SourceMark({ source, large = false }: { source: string; large?: boolean
   const name = sourceLabel(source)
   return (
     <span className={`source-mark source-${name.toLowerCase()}${large ? ' source-mark-large' : ''}`}>
-      {name === 'GitHub' ? <GitHubIcon /> : name === 'Slack' ? <SlackIcon /> : name === 'Linear' ? <LinearIcon /> : <SignalIcon />}
+      {name === 'GitHub' ? <GitHubIcon /> : name === 'Slack' ? <SlackIcon /> : name === 'Gmail' ? <MailIcon /> : name === 'Linear' ? <LinearIcon /> : <SignalIcon />}
     </span>
   )
 }
@@ -326,6 +332,9 @@ function LinearIcon() {
 }
 function SignalIcon() {
   return <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="2" /><path d="M5.8 14.2a6 6 0 0 1 0-8.4M14.2 5.8a6 6 0 0 1 0 8.4" /></svg>
+}
+function MailIcon() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v10H3zM3 6l7 5 7-5" /></svg>
 }
 function QuoteIcon() {
   return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 4.5h13v9h-7l-4 2.5v-2.5h-2zM6.5 8h7M6.5 10.5h4.5" /></svg>

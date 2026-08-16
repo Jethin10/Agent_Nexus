@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { slackWriter } from './index.js'
+import { slackHistoryReader, slackMessageToRaw, slackWriter } from './index.js'
 
 const w = () => slackWriter({ token: 'xoxb-not-real', channel: 'C123' })
 
@@ -120,5 +120,36 @@ describe('update', () => {
     await w().update('1', 'edited')
 
     expect(callOf(fetchMock)[0]).not.toContain('postMessage')
+  })
+})
+
+describe('Slack inbound context', () => {
+  it('collapses replies onto the parent conversation', () => {
+    const event = slackMessageToRaw({
+      channel: 'C123', ts: '1700000001.0002', threadTs: '1700000000.0001',
+      user: 'U42', text: 'The getSessionId error also happens in production',
+    }, 'org_demo')
+    expect(event).toMatchObject({
+      source: 'slack',
+      sourceRef: 'slack:C123:1700000001.0002',
+      threadKey: 'slack:C123:1700000000.0001',
+      actor: { id: 'U42', handle: 'U42', isBot: false },
+    })
+  })
+
+  it('never feeds bot delivery messages back into triage', () => {
+    expect(slackMessageToRaw({ channel: 'C123', ts: '1.0', text: 'PR ready', botId: 'B1' }, 'org_demo')).toBeUndefined()
+  })
+
+  it('reads channel history and thread replies', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(reply({ ok: true, messages: [{ ts: '10.0', user: 'U1', text: 'Bug report', reply_count: 1 }] }))
+      .mockResolvedValueOnce(reply({ ok: true, messages: [
+        { ts: '10.0', user: 'U1', text: 'Bug report' },
+        { ts: '11.0', thread_ts: '10.0', user: 'U2', text: 'Confirmed' },
+      ] }))
+    const events = await slackHistoryReader({ token: 'token', channel: 'C123', fetcher }).read('org_demo')
+    expect(events.map((event) => event.sourceRef)).toEqual(['slack:C123:10.0', 'slack:C123:11.0'])
+    expect(events[1]?.threadKey).toBe('slack:C123:10.0')
   })
 })

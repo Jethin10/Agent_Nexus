@@ -1,3 +1,4 @@
+import type { RawEvent } from '@ascendant/core'
 import { WebhookError } from '../types.js'
 
 /**
@@ -16,6 +17,106 @@ const API = 'https://slack.com/api'
 
 /** Slack's own retry hint on a 429, in seconds. */
 const DEFAULT_RETRY_AFTER = 30
+
+export interface SlackHistoryOptions {
+  token: string
+  channel: string
+  maxMessages?: number
+  fetcher?: typeof fetch
+}
+
+export interface SlackInboundMessage {
+  channel: string
+  ts: string
+  threadTs?: string
+  user?: string
+  text: string
+  botId?: string
+  subtype?: string
+}
+
+/** Read a bounded channel history for the operator-triggered context sync. */
+export function slackHistoryReader(opts: SlackHistoryOptions) {
+  const fetcher = opts.fetcher ?? fetch
+  const call = async <T>(method: string, params: Record<string, string>): Promise<T> => {
+    const url = new URL(`${API}/${method}`)
+    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
+    const res = await fetcher(url, { headers: { authorization: `Bearer ${opts.token}` } })
+    const body = await res.json() as T & { ok?: boolean; error?: string }
+    if (!res.ok || !body.ok) throw new SlackError(`slack ${method} refused: ${body.error ?? `HTTP ${res.status}`}`, body.error)
+    return body
+  }
+
+  return {
+    async read(orgId: string): Promise<RawEvent[]> {
+      const limit = String(Math.min(Math.max(opts.maxMessages ?? 40, 1), 100))
+      const history = await call<{ ok?: boolean; messages?: SlackApiMessage[] }>('conversations.history', {
+        channel: opts.channel,
+        limit,
+      })
+      const events: RawEvent[] = []
+      for (const message of history.messages ?? []) {
+        const raw = slackMessageToRaw(toInbound(opts.channel, message), orgId)
+        if (raw) events.push(raw)
+        if (message.reply_count && Number(message.reply_count) > 0 && message.ts) {
+          const replies = await call<{ ok?: boolean; messages?: SlackApiMessage[] }>('conversations.replies', {
+            channel: opts.channel,
+            ts: message.ts,
+            limit: '100',
+          })
+          for (const reply of (replies.messages ?? []).slice(1)) {
+            const parsed = slackMessageToRaw(toInbound(opts.channel, reply), orgId)
+            if (parsed) events.push(parsed)
+          }
+        }
+      }
+      return events
+    },
+  }
+}
+
+interface SlackApiMessage {
+  ts?: string
+  thread_ts?: string
+  user?: string
+  text?: string
+  bot_id?: string
+  subtype?: string
+  reply_count?: number
+}
+
+function toInbound(channel: string, message: SlackApiMessage): SlackInboundMessage {
+  return {
+    channel,
+    ts: message.ts ?? '',
+    ...(message.thread_ts ? { threadTs: message.thread_ts } : {}),
+    ...(message.user ? { user: message.user } : {}),
+    text: message.text ?? '',
+    ...(message.bot_id ? { botId: message.bot_id } : {}),
+    ...(message.subtype ? { subtype: message.subtype } : {}),
+  }
+}
+
+export function slackMessageToRaw(message: SlackInboundMessage, orgId: string): RawEvent | undefined {
+  if (!message.ts || !message.channel || !message.text.trim()) return undefined
+  // Never ingest the bot's own delivery updates back into the gate.
+  if (message.botId || (message.subtype && message.subtype !== 'thread_broadcast')) return undefined
+  const thread = message.threadTs || message.ts
+  const firstLine = message.text.split(/\r?\n/, 1)[0]?.trim() || 'Slack conversation'
+  return {
+    orgId,
+    source: 'slack',
+    sourceRef: `slack:${message.channel}:${message.ts}`,
+    kind: 'message',
+    threadKey: `slack:${message.channel}:${thread}`,
+    actor: { id: message.user ?? 'unknown', handle: message.user ?? 'unknown', isBot: false },
+    title: firstLine.slice(0, 160),
+    body: message.text,
+    createdAt: new Date(Number(message.ts.split('.')[0]) * 1_000),
+    attachments: [],
+    raw: message,
+  }
+}
 
 export class SlackError extends Error {
   constructor(

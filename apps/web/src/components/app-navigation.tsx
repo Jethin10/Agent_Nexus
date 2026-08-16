@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 
 const ITEMS = [
   { href: '/', label: 'Inbox', icon: InboxIcon, match: '/' },
+  { href: '/ledger', label: 'Ledger', icon: DocumentIcon, match: '/ledger' },
   { href: '/metrics', label: 'Decisions', icon: LayersIcon, match: '/metrics' },
   { href: '/?review=1', label: 'Evidence', icon: DocumentIcon, match: '/evidence' },
   { href: '/policy', label: 'Policy', icon: ShieldIcon, match: '/policy' },

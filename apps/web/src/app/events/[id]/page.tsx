@@ -7,14 +7,17 @@ import {
   readPolicy,
   runTrace,
   ticketTrace,
+  threadEvents,
 } from '@ascendant/db'
 import { Confidence, DbError, Empty, OutcomeBadge, Panel, Pill, when } from '@/components/bits'
 import { currentOrgId, demoMode } from '@/lib/org'
-import { ensureDb } from '@/lib/local-db'
+import { ensureDb, isLocalDb } from '@/lib/local-db'
 import { Timeline } from '@/components/timeline'
 import { ReplayTimeline } from '@/components/replay-timeline'
 import { TicketFor } from '@/components/ticket'
 import { EventReviewActions } from '@/components/event-review-actions'
+import { LiveRefresh } from '@/components/live-refresh'
+import { LocalEventClient } from '@/components/local-dashboard'
 
 /**
  * Run Detail — §11.1's second view, and where the "agents argue with each other" claim
@@ -33,6 +36,7 @@ interface Props {
 
 export default async function EventPage({ params }: Props) {
   const { id } = await params
+  if (isLocalDb()) return <LocalEventClient id={id} />
   const orgId = currentOrgId()
 
   try {
@@ -41,9 +45,10 @@ export default async function EventPage({ params }: Props) {
     const event = await getEvent(database, orgId, id)
     if (!event) notFound()
 
-    const [decision, bands] = await Promise.all([
+    const [decision, bands, conversation] = await Promise.all([
       decisionForEvent(database, orgId, id),
       readPolicy(database, orgId).then((p) => p.bands),
+      threadEvents(database, orgId, event.unitKey),
     ])
 
     const ticket = decision ? await TicketFor({ orgId, eventId: id }) : null
@@ -59,9 +64,7 @@ export default async function EventPage({ params }: Props) {
 
     return (
       <>
-        <p className="small">
-          <Link href="/">← Inbox</Link>
-        </p>
+        <div className="row small"><Link href="/">← Inbox</Link><LiveRefresh /></div>
         <h1>{event.title || event.sourceRef}</h1>
         <div className="row small dim" style={{ marginBottom: 18 }}>
           <span className="mono">{event.sourceRef}</span>
@@ -204,6 +207,27 @@ export default async function EventPage({ params }: Props) {
           ) : (
             <Timeline rows={timeline} />
           )}
+        </Panel>
+
+        <Panel title="Source conversation">
+          <p className="small dim" style={{ marginTop: 0 }}>
+            The immutable source history the decision was made against. Replies sharing
+            this thread are shown oldest first.
+          </p>
+          <div className="source-thread">
+            {conversation.map((message) => (
+              <article key={message.id} className="source-thread-item">
+                <div className="row small">
+                  <Pill>{message.source}</Pill>
+                  <strong>@{message.actorHandle}</strong>
+                  <span className="dim mono">{when(message.createdAt)}</span>
+                  <span className="dim mono">{message.sourceRef}</span>
+                </div>
+                <strong>{message.title}</strong>
+                <pre className="block small">{message.body.slice(0, 4_000) || '(empty body)'}</pre>
+              </article>
+            ))}
+          </div>
         </Panel>
 
         <Panel title="The event as ingested">

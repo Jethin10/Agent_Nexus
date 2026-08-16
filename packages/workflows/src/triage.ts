@@ -212,6 +212,7 @@ export const triageFn = inngest.createFunction(
           autonomous: result.autonomous,
           decidedByPolicy: result.decidedByPolicy,
           title: row.title,
+          statement: `${row.title}\n\n${body}`,
           reasoning: result.reasoning,
           citations: result.citations,
           mergeTargetId: result.mergeTargetId ?? null,
@@ -274,6 +275,7 @@ export const triageFn = inngest.createFunction(
           autonomous: false,
           decidedByPolicy: false,
           title: row.title,
+          statement: `${row.title}\n\n${body}`,
           reasoning: reason,
           citations: decision.citations,
           mergeTargetId: null,
@@ -351,7 +353,7 @@ export const triageFn = inngest.createFunction(
           orgId,
           decision,
           title: decided.title,
-          statement: decided.reasoning,
+          statement: decided.statement,
         })
         return { id: t.id }
       })
@@ -359,7 +361,7 @@ export const triageFn = inngest.createFunction(
       await step.run('connect-work-tracking', async () => {
         const linear = await createLinearWorkItem(linearFromEnv(), {
           title: decided.title,
-          description: decided.reasoning,
+          description: `${decided.statement}\n\nAscendant decision:\n${decided.reasoning}`,
           decisionId: decided.decisionId,
         })
         if (linear.status === 'ok') {

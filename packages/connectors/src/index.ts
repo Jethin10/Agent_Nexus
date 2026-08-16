@@ -1,5 +1,6 @@
 export * from './types.js'
 export * from './verify.js'
 export * from './github/index.js'
+export * from './gmail/index.js'
 export * from './slack/index.js'
 export * from './linear/index.js'

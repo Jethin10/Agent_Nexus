@@ -134,7 +134,7 @@ packages/
   db/              Drizzle schema, 10 tables, pgvector helpers         (23 files)
   router/          LLM cascade: budget, retries, schema repair          (7 files)
   agents/          all 8 agents, each a pure fn (ctx) => output         (7 files)
-  connectors/      GitHub + outbound Linear/Slack; Google planned
+  connectors/      GitHub + inbound Gmail/Slack + outbound Linear/Slack
   sandbox/         E2B, GitHub Actions and local drivers                (7 files)
   workflows/       Inngest functions — the ONLY layer that does I/O    (13 files)
 scripts/           seed + demo runner + offline model
@@ -247,7 +247,7 @@ A passing typecheck is **not** sufficient before deploying — webpack resolves 
 | agents: triage / pipeline / delivery | 18 / 19 / 26 |
 | sandbox: guards + local driver | 33 |
 | workflows: repo, GitHub writer, integration notification, source response | 16 / 2 / 13 / 3 |
-| connectors: github / Linear / Slack | 22 / 9 / 8 |
+| connectors: github / Linear / Slack / Gmail | 29 / 9 / 11 / 2 |
 | scripts: offline model / embedder / demo mode / scenario reset | 20 / 6 / 6 / 5 |
 | web: replay schedule / dashboard auth / deploy guard | 10 / 10 / 8 |
 | db: inbox + persisted human review | 3 / 2 |
@@ -293,6 +293,9 @@ The gate runs end to end. What is built, and what isn't:
 | ✅ GitHub delivery + refusal responses | requires a configured demo repository |
 | ✅ Linear work-item mirror + stage updates | requires Linear credentials |
 | ✅ Slack notifications + signed human actions | requires a Slack app and signing secret |
+| ✅ Slack message ingestion + bounded history sync | configured channel allowlist |
+| ✅ Gmail read-only context sync | bounded by an explicit Gmail query |
+| ✅ Context ledger + source-thread history | live-refreshing local and deployed views |
 | ⬜ Inbound connectors beyond GitHub | planned |
 | ⬜ Scale the eval set to 60 issues | the harness is written; 12 smoke scenarios exist today. Metrics uses seeded operational history, not the labelled eval. |
 

@@ -161,6 +161,7 @@ export async function inbox(
       kind: events.kind,
       sourceRef: events.sourceRef,
       title: events.title,
+      bodyPreview: sql<string>`left(${events.body}, 420)`,
       actorHandle: events.actorHandle,
       trust: events.trust,
       injectionSuspected: events.injectionSuspected,

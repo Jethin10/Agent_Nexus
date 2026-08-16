@@ -3,11 +3,13 @@ import {
   hmacHex,
   safeEqualHex,
   slackBasestring,
+  slackMessageToRaw,
   slackTimestampFresh,
 } from '@ascendant/connectors'
 import { currentOrgId } from '@/lib/org'
 import { ensureDb } from '@/lib/local-db'
 import { slackReviewerAllowed } from '@/lib/slack-auth'
+import { persistContextEvents } from '@/lib/context-ingest'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -25,6 +27,10 @@ export async function POST(req: Request): Promise<Response> {
   const expected = `v0=${hmacHex('sha256', secret, slackBasestring(timestamp, body))}`
   if (!safeEqualHex(signature.replace(/^v0=/, ''), expected.replace(/^v0=/, ''))) {
     return json({ error: 'signature verification failed' }, 401)
+  }
+
+  if (req.headers.get('content-type')?.includes('application/json')) {
+    return handleSlackEvent(body)
   }
 
   const encoded = new URLSearchParams(body).get('payload')
@@ -76,9 +82,62 @@ export async function POST(req: Request): Promise<Response> {
   }, 200)
 }
 
+async function handleSlackEvent(body: string): Promise<Response> {
+  let payload: SlackEventEnvelope
+  try {
+    payload = JSON.parse(body) as SlackEventEnvelope
+  } catch {
+    return json({ error: 'Slack event payload is not JSON' }, 400)
+  }
+
+  if (payload.type === 'url_verification' && payload.challenge) {
+    return json({ challenge: payload.challenge }, 200)
+  }
+  if (payload.type !== 'event_callback' || payload.event?.type !== 'message') {
+    return json({ ok: true, ignored: true }, 200)
+  }
+
+  const event = payload.event
+  const allowed = new Set(
+    (process.env.SLACK_INGEST_CHANNEL_IDS || process.env.SLACK_INGEST_CHANNEL_ID || process.env.SLACK_CHANNEL_ID || '')
+      .split(',').map((channel) => channel.trim()).filter(Boolean),
+  )
+  if (allowed.size === 0) return json({ error: 'no Slack ingest channel is configured' }, 503)
+  if (!event.channel || !allowed.has(event.channel)) return json({ ok: true, ignored: true, reason: 'channel' }, 200)
+
+  const raw = slackMessageToRaw({
+    channel: event.channel,
+    ts: event.ts ?? '',
+    ...(event.thread_ts ? { threadTs: event.thread_ts } : {}),
+    ...(event.user ? { user: event.user } : {}),
+    text: event.text ?? '',
+    ...(event.bot_id ? { botId: event.bot_id } : {}),
+    ...(event.subtype ? { subtype: event.subtype } : {}),
+  }, currentOrgId())
+  if (!raw) return json({ ok: true, ignored: true, reason: 'message' }, 200)
+
+  const saved = await persistContextEvents([raw])
+  return json({ ok: true, event: raw.sourceRef, ...saved }, 202)
+}
+
 interface SlackInteraction {
   user?: { id?: string; username?: string; name?: string }
   actions?: { action_id?: string; value?: string }[]
+}
+
+interface SlackEventEnvelope {
+  type?: string
+  challenge?: string
+  event?: {
+    type?: string
+    channel?: string
+    ts?: string
+    thread_ts?: string
+    user?: string
+    text?: string
+    bot_id?: string
+    subtype?: string
+  }
 }
 
 function outcomeForAction(id: string | undefined) {

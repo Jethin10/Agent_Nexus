@@ -175,26 +175,29 @@ export const qaFn = inngest.createFunction(
       }
     })
 
-    /**
-     * A red suite loops back to the Coder exactly once, via `work/accepted`, which
-     * re-enters plan-and-code with the failures on the trace. §4.2 caps coder retries
-     * at 2 and that cap is enforced inside the debate loop, so this cannot ping-pong.
-     */
-    if (tested.verdict === 'fail') {
-      await step.run('mark-failed', async () => {
+    /** Only a proven pass may publish a PR. A failing or inconclusive sandbox result
+     * remains visible for a human, but never crosses into delivery as "tested". */
+    if (tested.verdict !== 'pass') {
+      await step.run('mark-not-deliverable', async () => {
         await trace(db(), {
           orgId,
           ticketId,
           runId: run.id,
           agent: 'qa',
-          phase: 'failed',
-          summary: `Tests failed: ${tested.failures.join(', ') || 'see the test log'}`,
+          phase: tested.verdict === 'fail' ? 'failed' : 'inconclusive',
+          summary: tested.verdict === 'fail'
+            ? `Tests failed: ${tested.failures.join(', ') || 'see the test log'}`
+            : 'QA was inconclusive; delivery is blocked until a real test signal passes.',
           detail: { failures: tested.failures, testLogArtifactId: tested.testLogArtifactId },
         })
         await updateTicket(db(), orgId, ticketId, { status: 'blocked' })
         await finishRun(db(), orgId, run.id, 'succeeded')
       })
-      return { ticketId, status: 'tests_failed', failures: tested.failures }
+      return {
+        ticketId,
+        status: tested.verdict === 'fail' ? 'tests_failed' : 'qa_inconclusive',
+        failures: tested.failures,
+      }
     }
 
     await step.run('notify-review-ready', async () => {

@@ -10,10 +10,16 @@ export const dynamic = 'force-dynamic'
 const ENDPOINTS = [
   { name: 'GitHub webhook', path: '/api/webhooks/github', use: 'Issues, comments, and pull requests' },
   { name: 'Slack interactions', path: '/api/webhooks/slack', use: 'Signed human review actions' },
+  { name: 'Context sync', path: '/api/context/sync', use: 'Bounded Gmail and Slack history import' },
   { name: 'Inngest functions', path: '/api/inngest', use: 'Durable workflow execution' },
 ]
 
-export default function IntegrationsPage() {
+interface Props {
+  searchParams: Promise<{ sync?: string; read?: string; inserted?: string; queued?: string; reason?: string }>
+}
+
+export default async function IntegrationsPage({ searchParams }: Props) {
+  const params = await searchParams
   const checks = integrationReadiness()
   const ready = checks.filter((check) => check.status === 'ready').length
   const blockers = checks.filter((check) => check.status !== 'ready')
@@ -45,6 +51,29 @@ export default function IntegrationsPage() {
           </div>
         </section>
       )}
+
+      {params.sync && (
+        <section className={`readiness-banner sync-result sync-${params.sync}`} role="status">
+          <span>{params.sync === 'ok' ? '✓' : '!'}</span>
+          <div>
+            <strong>{params.sync === 'ok' ? 'Context sync completed' : params.sync === 'missing' ? 'No inbound source is configured' : 'Context sync failed'}</strong>
+            <p>{params.sync === 'ok'
+              ? `${params.read ?? 0} read · ${params.inserted ?? 0} new · ${params.queued ?? 0} queued for analysis`
+              : params.reason ?? 'Add the Gmail or Slack history variables below, then retry.'}</p>
+          </div>
+        </section>
+      )}
+
+      <section className="context-sync-panel">
+        <div>
+          <span className="eyebrow">Judge rehearsal</span>
+          <h2>Sync conversation context</h2>
+          <p>Imports only the configured Gmail query and Slack channel. Existing provider ids are deduplicated.</p>
+        </div>
+        <form action="/api/context/sync" method="post">
+          <button className="primary-action" type="submit">Sync Gmail + Slack</button>
+        </form>
+      </section>
 
       <section className="integration-grid" aria-label="Integration readiness">
         {checks.map((check) => (

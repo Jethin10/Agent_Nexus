@@ -4,6 +4,7 @@ import { db, insertEvent, readPolicy } from '@ascendant/db'
 import { scanForInjection } from '@ascendant/router'
 import { inngest } from '@ascendant/workflows'
 import { currentOrgId } from '@/lib/org'
+import { ensureDb } from '@/lib/local-db'
 
 /**
  * The GitHub webhook receiver. §13.3: on Vercel Hobby a function is capped at 60s, so
@@ -43,6 +44,7 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const orgId = currentOrgId()
+  await ensureDb()
   const deliveryId = req.headers.get('x-github-delivery') ?? undefined
 
   let raws

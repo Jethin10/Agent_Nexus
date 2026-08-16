@@ -1,7 +1,8 @@
 # Real integration setup
 
-Ascendant now has executable integration paths for GitHub, Linear, Slack, Inngest,
-and the sandbox. Credentials are intentionally not committed. Run:
+Ascendant has executable integration paths for GitHub, Gmail context, Slack context
+and review actions, Linear, Inngest, and the sandbox. Credentials are intentionally
+not committed. Run:
 
 ```bash
 cp .env.example .env.local   # or configure the same names in Vercel
@@ -38,6 +39,21 @@ fine-grained token scoped to the configured repository, but it is disabled unles
 `ASCENDANT_ALLOW_GITHUB_TOKEN=1` is also set. Never set that flag in production. App
 credentials take precedence when both authentication methods are present.
 
+Encode the GitHub App PEM without copying it into the repository:
+
+```powershell
+[Convert]::ToBase64String([IO.File]::ReadAllBytes('C:\path\to\app.pem'))
+```
+
+```bash
+base64 < /path/to/app.pem | tr -d '\n'
+```
+
+For a local fine-grained PAT, grant only repository access to the demo repository with
+Contents read/write, Issues read/write, Pull requests read/write, and Metadata read.
+Set `ASCENDANT_ALLOW_GITHUB_TOKEN=1` locally. The flag is intentionally required so a
+stray shell token cannot silently become production authorization.
+
 The normal workflow posts the decision back to a matching configured GitHub issue.
 Autonomous REJECT/MERGE decisions may close it as `not_planned`; every outcome gets
 an `ascendant:<outcome>` label. `pnpm demo:build --publish` has an additional guard:
@@ -61,11 +77,16 @@ after QA, and Done after GitHub delivery.
 Create a Slack app with bot scopes:
 
 ```text
-chat:write
+chat:write · channels:history
 ```
 
 Invite the bot to the configured channel, then set `SLACK_BOT_TOKEN` and the channel
 ID (a `C...` id, not a `#name`) as `SLACK_CHANNEL_ID`.
+Set `SLACK_INGEST_CHANNEL_ID` to the bounded conversation channel used for history
+sync. For multiple signed Events API channels, set comma-separated
+`SLACK_INGEST_CHANNEL_IDS`. Subscribe the app to `message.channels` and use the same
+signed endpoint below. Bot messages are ignored so Ascendant never ingests its own
+delivery notifications.
 
 Enable interactivity with:
 
@@ -80,6 +101,27 @@ Review buttons persist a human outcome
 or immutable overturn before emitting `human/resolved` to resume a parked Inngest
 run.
 
+## Gmail
+
+Create a Google Cloud OAuth client and authorize only:
+
+```text
+https://www.googleapis.com/auth/gmail.readonly
+```
+
+Set `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and the resulting long-lived
+`GMAIL_REFRESH_TOKEN`. Apply the label `ascendant` only to the threads you want the
+judge demo to use, then keep the default safety query:
+
+```text
+GMAIL_QUERY=label:ascendant newer_than:30d
+```
+
+The dashboard's Integrations page has a “Sync Gmail + Slack” control. It fetches a
+bounded history, stores immutable provider ids, deduplicates repeats, and dispatches
+new records through the same triage pipeline when Inngest is configured. It never
+sends, modifies, labels, or deletes mail.
+
 ## Inngest and database
 
 Configure a Neon Postgres database with pgvector and apply the migration. Set
@@ -90,9 +132,17 @@ closed when durable database or signed workflow configuration is absent. Serve f
 https://<deployment>/api/inngest
 ```
 
-The local path uses PGlite and does not need Inngest. If a local human review is
-recorded while Inngest is disconnected, the UI explicitly says the audit record is
-persisted and workflow continuation is pending.
+For a local real-time webhook rehearsal, run the two processes in separate terminals:
+
+```bash
+pnpm dev
+pnpm dev:inngest
+```
+
+`pnpm dev` sets `INNGEST_DEV=1`; the second command starts the official local Inngest
+server and registers `/api/inngest`. PGlite holds the durable local data. If a human
+review is recorded while Inngest is disconnected, the UI explicitly says the audit
+record is persisted and workflow continuation is pending.
 
 ## Model and embeddings
 
@@ -137,8 +187,9 @@ pnpm build
 ```
 
 After deployment, point GitHub, Slack, and Inngest at the signed endpoints listed above,
-then open `/integrations` and confirm every required connection is ready. Create a real,
-bounded issue in the configured repository and verify this journey:
+then open `/integrations`, sync the labelled Gmail/Slack context, and confirm every
+required connection is ready. Open `/ledger` to rehearse the source history. Create a
+real, bounded issue in the configured repository and verify this journey:
 
 1. GitHub receives the webhook with a `2xx` response.
 2. The event and immutable decision appear in the Inbox and audit timeline.

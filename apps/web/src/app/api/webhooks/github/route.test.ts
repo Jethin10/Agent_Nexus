@@ -42,6 +42,10 @@ vi.mock('@/lib/org', () => ({
   currentOrgId: () => 'org_live',
 }))
 
+vi.mock('@/lib/local-db', () => ({
+  ensureDb: vi.fn().mockResolvedValue(undefined),
+}))
+
 import { POST } from './route.js'
 
 const row = {

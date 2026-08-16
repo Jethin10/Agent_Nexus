@@ -616,6 +616,54 @@ blockquote { margin: 8px 0; padding-left: 11px; color: var(--muted); border-left
 .source-message.is-visible { opacity: 1; transform: translateY(0); box-shadow: 0 3px 12px rgba(25,25,30,.035); }
 .demo-source-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; color: white; font-size: 12px; font-weight: 690; }
 .tone-slack { background: #3f173f; }
+.live-refresh { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.live-refresh i { width: 7px; height: 7px; border-radius: 999px; background: var(--accept); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accept) 18%, transparent); }
+.context-sync-panel { display: flex; justify-content: space-between; gap: 24px; align-items: center; margin: 18px 0; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.context-sync-panel h2 { margin: 4px 0 6px; }
+.context-sync-panel p { margin: 0; color: var(--muted); }
+.sync-result { margin-top: 16px; }
+.sync-failed { border-color: var(--reject); }
+
+/* Cross-source ledger ------------------------------------------------------- */
+.ledger-page { padding: 34px; max-width: 1180px; margin: 0 auto; }
+.local-inbox { padding: 34px; max-width: 1180px; margin: 0 auto; }
+.local-search { width: 100%; margin-bottom: 18px; padding: 11px 13px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); color: var(--text); }
+.local-event > h1 { margin-bottom: 6px; }
+.local-event .panel { margin-top: 16px; }
+.local-event blockquote small { display: block; margin-top: 5px; color: var(--muted); }
+.ledger-header { display: flex; justify-content: space-between; gap: 28px; align-items: flex-start; margin-bottom: 24px; }
+.ledger-header h1 { margin: 4px 0 8px; font-size: 34px; }
+.ledger-header p { margin: 0; max-width: 720px; color: var(--muted); }
+.ledger-source-strip { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+.ledger-source-strip div { min-width: 112px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel); }
+.ledger-source-strip strong { display: block; font-size: 22px; }
+.ledger-source-strip span { color: var(--muted); font-size: 12px; }
+.ledger-list { display: grid; gap: 12px; }
+.ledger-record { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); padding: 18px; }
+.ledger-record-meta { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; color: var(--muted); font-size: 12px; }
+.ledger-record-meta code { margin-left: auto; }
+.ledger-record h2 { font-size: 18px; margin: 12px 0 7px; }
+.ledger-record h2 a { color: inherit; text-decoration: none; }
+.ledger-record h2 a:hover { text-decoration: underline; }
+.ledger-body { color: var(--muted); white-space: pre-wrap; margin: 0 0 14px; line-height: 1.55; }
+.ledger-analysis { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start; padding-top: 12px; border-top: 1px solid var(--border); }
+.ledger-analysis p { margin: 0; }
+.ledger-analysis small { color: var(--muted); }
+.ledger-source, .ledger-outcome { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.ledger-source { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.ledger-outcome { background: color-mix(in srgb, var(--muted) 14%, transparent); }
+.source-thread { display: grid; gap: 12px; }
+.source-thread-item { border-left: 2px solid var(--border); padding-left: 14px; }
+.source-thread-item > strong { display: block; margin: 8px 0; }
+.source-thread-item pre { margin-bottom: 0; white-space: pre-wrap; }
+
+@media (max-width: 760px) {
+  .ledger-page { padding: 20px; }
+  .ledger-header { display: block; }
+  .ledger-header .runtime-launch { margin-top: 14px; }
+  .ledger-analysis { grid-template-columns: 1fr; }
+  .ledger-record-meta code { margin-left: 0; width: 100%; }
+}
 .tone-discord { background: #5865f2; }
 .tone-github { background: #24292f; }
 .tone-linear { background: #5e6ad2; }

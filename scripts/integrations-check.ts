@@ -1,4 +1,4 @@
-import { linearWriter } from '@ascendant/connectors'
+import { gmailReader, linearWriter } from '@ascendant/connectors'
 import { e2bDriver } from '@ascendant/sandbox'
 import { db } from '@ascendant/db'
 import { sql } from 'drizzle-orm'
@@ -58,13 +58,35 @@ async function main() {
       })
       const body = await res.json() as { ok?: boolean; team?: string; error?: string }
       if (!body.ok) throw new Error(body.error ?? `HTTP ${res.status}`)
-      checks.push({ name: 'Slack', status: 'ready', detail: `${body.team ?? 'workspace'}; channel ${process.env.SLACK_CHANNEL_ID}` })
+      const channel = process.env.SLACK_INGEST_CHANNEL_ID || process.env.SLACK_CHANNEL_ID
+      const history = await fetch(`https://slack.com/api/conversations.history?channel=${encodeURIComponent(channel)}&limit=1`, {
+        headers: { authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}` },
+      }).then((response) => response.json()) as { ok?: boolean; error?: string }
+      if (!history.ok) throw new Error(`history scope/channel: ${history.error ?? 'unknown'}`)
+      checks.push({ name: 'Slack', status: 'ready', detail: `${body.team ?? 'workspace'}; history readable for ${channel}` })
     } catch (err) {
       checks.push({ name: 'Slack', status: 'failed', detail: message(err) })
     }
   }
   configured('Slack interactions', process.env.SLACK_SIGNING_SECRET, 'set SLACK_SIGNING_SECRET')
   configured('Slack reviewers', process.env.SLACK_REVIEWER_IDS, 'set SLACK_REVIEWER_IDS')
+
+  if (!process.env.GMAIL_CLIENT_ID || !process.env.GMAIL_CLIENT_SECRET || !process.env.GMAIL_REFRESH_TOKEN) {
+    checks.push({ name: 'Gmail context', status: 'missing', detail: 'set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN' })
+  } else {
+    try {
+      const events = await gmailReader({
+        clientId: process.env.GMAIL_CLIENT_ID,
+        clientSecret: process.env.GMAIL_CLIENT_SECRET,
+        refreshToken: process.env.GMAIL_REFRESH_TOKEN,
+        query: process.env.GMAIL_QUERY,
+        maxMessages: 1,
+      }).read(process.env.ASCENDANT_ORG_ID || 'org_demo')
+      checks.push({ name: 'Gmail context', status: 'ready', detail: `read-only OAuth verified; ${events.length} matching message${events.length === 1 ? '' : 's'} sampled` })
+    } catch (err) {
+      checks.push({ name: 'Gmail context', status: 'failed', detail: message(err) })
+    }
+  }
 
   const configuration = integrationReadiness()
   for (const id of ['inngest', 'dashboard'] as const) {

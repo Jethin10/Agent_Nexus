@@ -1,7 +1,7 @@
 export type IntegrationStatus = 'ready' | 'degraded' | 'missing'
 
 export interface IntegrationReadiness {
-  id: 'github' | 'database' | 'inngest' | 'models' | 'slack' | 'linear' | 'sandbox' | 'dashboard'
+  id: 'github' | 'database' | 'inngest' | 'models' | 'slack' | 'gmail' | 'linear' | 'sandbox' | 'dashboard'
   name: string
   status: IntegrationStatus
   detail: string
@@ -40,6 +40,9 @@ export function integrationReadiness(
   const slackOutbound = has(env, 'SLACK_BOT_TOKEN', 'SLACK_CHANNEL_ID')
   const slackSigned = Boolean(env.SLACK_SIGNING_SECRET)
   const slackReviewers = Boolean(env.SLACK_REVIEWER_IDS?.split(',').some((id) => id.trim()))
+  const slackInbound = Boolean(env.SLACK_INGEST_CHANNEL_IDS || env.SLACK_INGEST_CHANNEL_ID || env.SLACK_CHANNEL_ID)
+  const gmail = has(env, 'GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN')
+  const gmailPartial = Boolean(env.GMAIL_CLIENT_ID || env.GMAIL_CLIENT_SECRET || env.GMAIL_REFRESH_TOKEN) && !gmail
   const linear = has(env, 'LINEAR_API_KEY', 'LINEAR_TEAM_ID')
 
   return [
@@ -98,15 +101,26 @@ export function integrationReadiness(
     {
       id: 'slack',
       name: 'Slack',
-      status: slackOutbound && slackSigned && slackReviewers
+      status: slackOutbound && slackSigned && slackReviewers && slackInbound
         ? 'ready'
-        : slackOutbound || slackSigned || slackReviewers
+        : slackOutbound || slackSigned || slackReviewers || slackInbound
           ? 'degraded'
           : 'missing',
-      detail: slackOutbound && slackSigned && slackReviewers
-        ? 'Channel notifications and reviewer-authorized signed actions are configured.'
-        : 'Bot/channel access, signing secret, and an explicit reviewer allowlist are required.',
-      required: ['SLACK_BOT_TOKEN', 'SLACK_CHANNEL_ID', 'SLACK_SIGNING_SECRET', 'SLACK_REVIEWER_IDS'],
+      detail: slackOutbound && slackSigned && slackReviewers && slackInbound
+        ? 'Signed message ingestion, bounded history sync, notifications, and reviewer actions are configured.'
+        : 'Bot/channel access, an ingest channel, signing secret, and reviewer allowlist are required.',
+      required: ['SLACK_BOT_TOKEN', 'SLACK_CHANNEL_ID', 'SLACK_INGEST_CHANNEL_ID(S)', 'SLACK_SIGNING_SECRET', 'SLACK_REVIEWER_IDS'],
+    },
+    {
+      id: 'gmail',
+      name: 'Gmail context',
+      status: gmail ? 'ready' : gmailPartial ? 'degraded' : 'missing',
+      detail: gmail
+        ? `Read-only history sync is configured${env.GMAIL_QUERY ? ` for query “${env.GMAIL_QUERY}”` : ' for the label:ascendant safety scope'}.`
+        : gmailPartial
+          ? 'Gmail OAuth is incomplete; client id, client secret, and refresh token are all required.'
+          : 'Configure read-only OAuth to import a bounded, explicitly filtered email history.',
+      required: ['GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET', 'GMAIL_REFRESH_TOKEN', 'GMAIL_QUERY'],
     },
     {
       id: 'linear',
