@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { TriageOutcome } from '@ascendant/core'
+import { EventReviewActions } from '@/components/event-review-actions'
 
 interface InboxRow {
   eventId: string
@@ -97,7 +99,7 @@ function SignalCard({ row, ledger = false }: { row: InboxRow; ledger?: boolean }
 
 interface EventPayload {
   event: { id: string; title: string; source: string; sourceRef: string; actorHandle: string; body: string; createdAt: string }
-  decision: { outcome: string; confidence: number; reasoning: string; citations: { ref: string; quote: string; why: string }[]; modelUsed: string } | null
+  decision: { id: string; outcome: TriageOutcome; confidence: number; reasoning: string; citations: { ref: string; quote: string; why: string }[]; modelUsed: string } | null
   ticket: { status: string; prUrl?: string | null; prNumber?: number | null } | null
   conversation: { id: string; source: string; sourceRef: string; actorHandle: string; title: string; body: string; createdAt: string }[]
   timeline: { id: string; agent: string; phase: string; summary: string; at: string }[]
@@ -124,7 +126,7 @@ export function LocalEventClient({ id }: { id: string }) {
       <div className="row small"><Link href="/">← Inbox</Link><span className="live-refresh"><i /> Live</span></div>
       <h1>{event.title}</h1>
       <p className="dim mono">{sourceLabel(event.source)} · {event.sourceRef} · @{event.actorHandle}</p>
-      <section className="panel"><h2>The decision</h2>{decision ? <><div className="row"><span className={`ledger-outcome outcome-${decision.outcome}`}>{decision.outcome}</span><strong>{Math.round(decision.confidence * 100)}% confidence</strong><code>{decision.modelUsed}</code></div><p>{decision.reasoning}</p><h3>Verified evidence</h3>{decision.citations.map((citation) => <blockquote key={citation.ref}><strong>{citation.ref}</strong><br />{citation.quote}<small>{citation.why}</small></blockquote>)}</> : <p className="dim">Analysis is queued.</p>}</section>
+      <section className="panel"><h2>The decision</h2>{decision ? <><div className="row"><span className={`ledger-outcome outcome-${decision.outcome}`}>{decision.outcome}</span><strong>{Math.round(decision.confidence * 100)}% confidence</strong><code>{decision.modelUsed}</code></div><p>{decision.reasoning}</p><h3>Verified evidence</h3>{decision.citations.map((citation) => <blockquote key={citation.ref}><strong>{citation.ref}</strong><br />{citation.quote}<small>{citation.why}</small></blockquote>)}<div className="event-review-divider" /><EventReviewActions eventId={event.id} decisionId={decision.id} outcome={decision.outcome} /></> : <p className="dim">Analysis is queued.</p>}</section>
       {ticket ? <section className="panel"><h2>Build ticket</h2><p>{ticket.status}{ticket.prUrl ? <> · <a href={ticket.prUrl}>PR #{ticket.prNumber}</a></> : null}</p></section> : null}
       <section className="panel"><h2>Agent run</h2><div className="source-thread">{timeline.map((row) => <article key={row.id} className="source-thread-item"><div className="row small"><strong>{row.agent}</strong><code>{row.phase}</code><time>{new Date(row.at).toLocaleTimeString()}</time></div><p>{row.summary}</p></article>)}</div>{timeline.length === 0 ? <p className="dim">Waiting for workflow trace…</p> : null}</section>
       <section className="panel"><h2>Source conversation</h2><div className="source-thread">{conversation.map((message) => <article key={message.id} className="source-thread-item"><div className="row small"><span className="ledger-source">{sourceLabel(message.source)}</span><strong>@{message.actorHandle}</strong><time>{new Date(message.createdAt).toLocaleString()}</time></div><h3>{message.title}</h3><pre className="block small">{message.body}</pre></article>)}</div></section>
