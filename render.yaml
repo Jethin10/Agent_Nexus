@@ -60,4 +60,8 @@ databases:
     plan: free
     region: singapore
     postgresMajorVersion: "16"
-    ipAllowList: []
+    # Vercel serverless egress has no stable source range. Access still requires the
+    # database's generated TLS connection string and rotating password.
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Vercel serverless egress

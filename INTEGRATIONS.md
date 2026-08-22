@@ -232,6 +232,8 @@ The production topology uses Vercel for the command-center UI and Render for the
 operational `/api/*` surface and managed Postgres. Set `ASCENDANT_BACKEND_URL` in
 Vercel to the Render service origin. Both runtimes use the same provider credentials
 and database so server-rendered pages and approval actions share one audit trail.
+Copy Render Postgres's **external** connection string into Vercel as `DATABASE_URL`;
+the backend receives its internal connection string automatically from the Blueprint.
 
 Render is defined by the repository-root `render.yaml`. Apply it from the Render
 Dashboard, fill every `sync: false` secret, and copy the resulting service URL into
