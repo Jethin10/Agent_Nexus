@@ -1,5 +1,7 @@
 import type { FileMap } from '@ascendant/sandbox'
-import { githubAppInstallationToken } from './github-auth.js'
+import { db as defaultDb, type Db } from '@ascendant/db'
+import { connectionForOrg } from './connections.js'
+import { githubAppInstallationToken, githubInstallationToken } from './github-auth.js'
 
 /**
  * Repository access for the work pipeline. Lives in the workflow layer because R1
@@ -186,6 +188,40 @@ export async function repoFromEnv(): Promise<
     ...(process.env.GITHUB_DEFAULT_BRANCH ? { ref: process.env.GITHUB_DEFAULT_BRANCH } : {}),
     configured: true,
     auth,
+  }
+}
+
+/** Resolve the repository selected by this organization, with env fallback for local installs. */
+export async function repoForOrg(
+  orgId: string,
+  database: Db = defaultDb(),
+): Promise<(RepoClientOptions & { configured: boolean; auth: 'app' | 'token' }) | undefined> {
+  const connection = await connectionForOrg(database, orgId, 'github')
+  if (!connection) return repoFromEnv()
+  // An installation with multiple repositories is connected but deliberately inert
+  // until the operator chooses the active repository in the Connections view.
+  if (!connection.owner || !connection.repo) return undefined
+
+  const appId = process.env.GITHUB_APP_ID
+  const appKey = process.env.GITHUB_APP_PRIVATE_KEY_BASE64
+  if (!appId || !appKey) {
+    throw new RepoError(
+      'GitHub is connected, but server GitHub App credentials are incomplete: set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY_BASE64',
+    )
+  }
+  const token = await githubInstallationToken({
+    appId,
+    privateKeyBase64: appKey,
+    installationId: connection.installationId,
+    repositories: [connection.repo],
+  })
+  return {
+    token,
+    owner: connection.owner,
+    repo: connection.repo,
+    ...(connection.defaultBranch ? { ref: connection.defaultBranch } : {}),
+    configured: true,
+    auth: 'app',
   }
 }
 

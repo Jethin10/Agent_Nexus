@@ -2,7 +2,7 @@ import { normalize } from '@ascendant/core'
 import { githubConnector, isGithubRepositoryRef } from '@ascendant/connectors'
 import { db, insertEvent, readPolicy } from '@ascendant/db'
 import { scanForInjection } from '@ascendant/router'
-import { inngest } from '@ascendant/workflows'
+import { connectionForOrg, inngest } from '@ascendant/workflows'
 import { currentOrgId } from '@/lib/org'
 import { ensureDb } from '@/lib/local-db'
 
@@ -61,10 +61,16 @@ export async function POST(req: Request): Promise<Response> {
     return json({ ok: true, ignored: true, action: readAction(payload) }, 200)
   }
 
-  const owner = process.env.GITHUB_OWNER
-  const repo = process.env.GITHUB_REPO
+  const database = db()
+  const connection = await connectionForOrg(database, orgId, 'github')
+  const owner = connection?.owner ?? process.env.GITHUB_OWNER
+  const repo = connection?.repo ?? process.env.GITHUB_REPO
   if (!owner || !repo) {
-    return json({ error: 'GITHUB_OWNER and GITHUB_REPO are not configured' }, 503)
+    return json({ error: 'No active GitHub repository is selected' }, 503)
+  }
+  const installationId = readInstallationId(payload)
+  if (connection && installationId !== connection.installationId) {
+    return json({ error: 'GitHub installation is not authorized for this workspace' }, 403)
   }
   if (raws.some((raw) => !isGithubRepositoryRef(raw.sourceRef, { owner, repo }))) {
     // One App webhook secret can authenticate payloads from every installation. A
@@ -73,7 +79,6 @@ export async function POST(req: Request): Promise<Response> {
     return json({ error: 'repository is not authorized for this deployment' }, 403)
   }
 
-  const database = db()
   const policy = await readPolicy(database, orgId)
   const accepted: { eventId: string; sourceRef: string; inserted: boolean }[] = []
 
@@ -121,6 +126,14 @@ function readAction(payload: unknown): string | undefined {
   return typeof payload === 'object' && payload !== null && 'action' in payload
     ? String((payload as { action?: unknown }).action)
     : undefined
+}
+
+function readInstallationId(payload: unknown): number | undefined {
+  if (typeof payload !== 'object' || payload === null || !('installation' in payload)) return undefined
+  const installation = (payload as { installation?: unknown }).installation
+  if (typeof installation !== 'object' || installation === null || !('id' in installation)) return undefined
+  const id = Number((installation as { id?: unknown }).id)
+  return Number.isSafeInteger(id) && id > 0 ? id : undefined
 }
 
 function json(body: unknown, status: number): Response {

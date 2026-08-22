@@ -12,9 +12,9 @@ import { code, plan, research, review } from '@ascendant/agents'
 import { LIMITS, scanDiff } from '@ascendant/core'
 import { inngest } from './events.js'
 import { flushTraces, openRun } from './runtime.js'
-import { repoClient, repoFromEnv } from './repo.js'
+import { repoClient, repoForOrg } from './repo.js'
 import { ticketById, updateTicket } from './tickets.js'
-import { linearFromEnv, notifyLinear, notifySlack, slackFromEnv } from './notify.js'
+import { linearFromEnv, notifyLinear, notifySlack, slackForOrg } from './notify.js'
 
 /**
  * Function 3 of 5 — `plan-and-code`. §4.2's bounded debate.
@@ -52,7 +52,7 @@ export const planAndCodeFn = inngest.createFunction(
       return { id: r.id }
     })
 
-    const repo = await repoFromEnv()
+    const repo = await repoForOrg(orgId)
     if (!repo) {
       await step.run('no-repo', async () => {
         await trace(db(), {
@@ -81,7 +81,7 @@ export const planAndCodeFn = inngest.createFunction(
       await updateTicket(db(), orgId, ticketId, { status: 'coding' })
       const [linear, slack] = await Promise.all([
         notifyLinear(linearFromEnv(), { issueId: ticket.linearId, stage: 'In Progress' }),
-        notifySlack(slackFromEnv(), {
+        notifySlack(await slackForOrg(orgId), {
           text: `*IN PROGRESS* — ${ticket.title}\nResearch, planning, coding and review are running.`,
           ts: ticket.slackTs,
           decisionId,

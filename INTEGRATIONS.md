@@ -11,6 +11,40 @@ pnpm integrations:check     # read-only; creates no external records
 
 Use `pnpm integrations:check --strict` before recording or deploying.
 
+## Vercel deployment
+
+The repository root now contains `vercel.json`, so import the repository with the
+project root left at the repository root. The checked-in configuration pins Node 22,
+installs the frozen pnpm workspace, builds only the Next.js application, and publishes
+`apps/web/.next`. Add the server credentials described below to the Vercel project
+before the first deployment. User-installed tokens, channels, and repositories are
+not deployment variables; they are selected from `/integrations` and encrypted at
+rest. The build fails closed when required runtime or OAuth-app settings are absent.
+
+## One-click account connections
+
+Set `OAUTH_STATE_SECRET` to at least 32 random characters and
+`ASCENDANT_CONNECTIONS_KEY` to 32 random bytes encoded as base64 (or 64 hex
+characters). OAuth callbacks require signed ten-minute state tied to an HttpOnly,
+SameSite cookie. Stored refresh and bot tokens use AES-256-GCM with
+organization/provider-bound authenticated data.
+
+Open `/integrations` behind dashboard authentication to connect GitHub, Slack, and
+Gmail. Only the exact provider callback GET paths bypass HTTP Basic because providers
+cannot replay the operator's Authorization header. Starts, disconnects, repository
+changes, and syncs remain authenticated and protected by same-origin mutation checks.
+
+Before deploying, run the single read-only cutover gate:
+
+```bash
+pnpm deploy:check
+```
+
+After deployment, `GET /api/health` returns `200` only when Postgres is reachable and
+every configured integration is production-ready. It returns names and readiness
+states only—never credentials. GitHub, Slack, and Inngest webhook routes remain signed
+and do not sit behind the dashboard's HTTP Basic gate.
+
 ## GitHub
 
 The public fixture is [`Jethin10/ascendant-demo-api`](https://github.com/Jethin10/ascendant-demo-api),
@@ -29,8 +63,8 @@ Subscribe its webhook to issues, issue comments, and pull requests, with the URL
 https://<deployment>/api/webhooks/github
 ```
 
-Set `GITHUB_WEBHOOK_SECRET`, `GITHUB_OWNER`, `GITHUB_REPO`, and
-`GITHUB_DEFAULT_BRANCH`. In production, set `GITHUB_APP_ID` and the app's PEM private
+Set `GITHUB_WEBHOOK_SECRET`. `GITHUB_OWNER`, `GITHUB_REPO`, and
+`GITHUB_DEFAULT_BRANCH` are optional local fallbacks. In production, set `GITHUB_APP_ID` and the app's PEM private
 key as base64 in `GITHUB_APP_PRIVATE_KEY_BASE64`; Ascendant signs a short-lived app JWT,
 finds the configured repository installation, and mints a repository-scoped one-hour
 installation token for each workflow invocation. The token is never persisted or sent
@@ -38,6 +72,11 @@ to an agent or sandbox. For local verification only, `GITHUB_TOKEN` may be a sho
 fine-grained token scoped to the configured repository, but it is disabled unless
 `ASCENDANT_ALLOW_GITHUB_TOKEN=1` is also set. Never set that flag in production. App
 credentials take precedence when both authentication methods are present.
+
+For hosted installation, also set `GITHUB_APP_SLUG` and configure the GitHub App setup
+URL as `https://<deployment>/api/connect/github/callback`. Ascendant stores the
+installation id and selected repository, then mints short-lived installation tokens
+on demand. `GITHUB_OWNER` and `GITHUB_REPO` are optional local fallbacks.
 
 Encode the GitHub App PEM without copying it into the repository:
 
@@ -94,12 +133,20 @@ Enable interactivity with:
 https://<deployment>/api/webhooks/slack
 ```
 
-Set `SLACK_SIGNING_SECRET` and comma-separated Slack member IDs in
-`SLACK_REVIEWER_IDS`. Ascendant verifies Slack's HMAC over the raw body, rejects
-timestamps older than five minutes, and rejects reviewers outside that allowlist.
+Set `SLACK_SIGNING_SECRET`. The member who installs the app becomes the initial
+reviewer; `SLACK_REVIEWER_IDS` remains an optional comma-separated local/additional
+allowlist. Ascendant verifies Slack's HMAC over the raw body, rejects timestamps older
+than five minutes, and rejects reviewers outside the stored workspace allowlist.
 Review buttons persist a human outcome
 or immutable overturn before emitting `human/resolved` to resume a parked Inngest
 run.
+
+For one-click installation, also grant `groups:history` and `incoming-webhook`, set
+`SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET`, and register
+`https://<deployment>/api/connect/slack/callback`. The bot token, chosen channel,
+workspace id, and installer reviewer are encrypted in the database. The selected
+channel governs live ingestion as well as history sync; static `SLACK_BOT_TOKEN` and
+`SLACK_CHANNEL_ID` are optional local fallbacks.
 
 ## Gmail
 
@@ -109,8 +156,9 @@ Create a Google Cloud OAuth client and authorize only:
 https://www.googleapis.com/auth/gmail.readonly
 ```
 
-Set `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, and the resulting long-lived
-`GMAIL_REFRESH_TOKEN`. Apply the label `ascendant` only to the threads you want the
+Set `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET`; the Connect Gmail flow obtains and
+encrypts the refresh token. `GMAIL_REFRESH_TOKEN` is only a local fallback. Apply the
+label `ascendant` only to the threads you want the
 judge demo to use, then keep the default safety query:
 
 ```text
@@ -121,6 +169,11 @@ The dashboard's Integrations page has a “Sync Gmail + Slack” control. It fet
 bounded history, stores immutable provider ids, deduplicates repeats, and dispatches
 new records through the same triage pipeline when Inngest is configured. It never
 sends, modifies, labels, or deletes mail.
+
+For one-click Gmail authorization, register
+`https://<deployment>/api/connect/google/callback`. Ascendant requests offline access
+and explicit consent, then encrypts the refresh token. `GMAIL_REFRESH_TOKEN` remains
+an optional local fallback.
 
 ## Inngest and database
 

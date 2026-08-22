@@ -186,7 +186,7 @@ Everything above runs with zero credentials. Adding keys upgrades specific parts
 | `OPENROUTER_API_KEY` | a 0.8 overflow rung. Works, but weaker than Groq on triage |
 | `DATABASE_URL` | Neon instead of local PGlite |
 | `GITHUB_APP_ID` + `GITHUB_APP_PRIVATE_KEY_BASE64` | mint short-lived installation tokens for real repository reads and writes |
-| `GITHUB_OWNER` + `GITHUB_REPO` | repository the installed GitHub App is allowed to operate on |
+| `GITHUB_OWNER` + `GITHUB_REPO` | optional local fallback; hosted installs select a repository in Connections |
 | `ASCENDANT_LOCAL_DB=1` | use in-process PGlite (**ignored when `DATABASE_URL` is set**) |
 | `ASCENDANT_DASHBOARD_PASSWORD` | shared secret for the dashboard gate. A production build **refuses to compile** without it |
 | `DEMO_MODE=replay` | Run Detail replays stored traces at their original pacing |

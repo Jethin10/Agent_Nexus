@@ -23,6 +23,25 @@ export interface GithubAppTokenOptions {
   now?: Date
 }
 
+export interface GithubInstallationTokenOptions {
+  appId: string
+  /** Base64-encoded PEM private key from the GitHub App settings page. */
+  privateKeyBase64: string
+  installationId: number
+  repositories?: string[]
+  fetcher?: typeof fetch
+  now?: Date
+}
+
+export interface GithubInstallationRepository {
+  id: number
+  name: string
+  fullName: string
+  owner: string
+  private: boolean
+  defaultBranch: string
+}
+
 /**
  * Mints a repository-scoped GitHub App installation token.
  *
@@ -47,15 +66,81 @@ export async function githubAppInstallationToken(opts: GithubAppTokenOptions): P
   if (!Number.isSafeInteger(installation.id)) {
     throw new GithubAuthError('GitHub returned an installation without a valid id')
   }
+  const installationId = installation.id as number
 
-  const tokenResponse = await fetcher(`${API}/app/installations/${installation.id}/access_tokens`, {
+  return githubInstallationToken({
+    appId: opts.appId,
+    privateKeyBase64: opts.privateKeyBase64,
+    installationId,
+    repositories: [opts.repo],
+    fetcher,
+    now: opts.now,
+  })
+}
+
+/** Mints a short-lived token from the installation id persisted after OAuth setup. */
+export async function githubInstallationToken(opts: GithubInstallationTokenOptions): Promise<string> {
+  if (!Number.isSafeInteger(opts.installationId) || opts.installationId <= 0) {
+    throw new GithubAuthError('GitHub installation id must be a positive integer')
+  }
+  const fetcher = opts.fetcher ?? fetch
+  const jwt = signAppJwt(opts.appId, opts.privateKeyBase64, opts.now ?? new Date())
+  const tokenResponse = await fetcher(`${API}/app/installations/${opts.installationId}/access_tokens`, {
     method: 'POST',
-    headers: { ...appHeaders, 'content-type': 'application/json' },
-    body: JSON.stringify({ repositories: [opts.repo] }),
+    headers: {
+      accept: 'application/vnd.github+json',
+      authorization: `Bearer ${jwt}`,
+      'x-github-api-version': API_VERSION,
+      'content-type': 'application/json',
+    },
+    ...(opts.repositories?.length
+      ? { body: JSON.stringify({ repositories: opts.repositories }) }
+      : {}),
   })
   const body = await readJson<{ token?: string }>(tokenResponse, 'mint installation token')
   if (!body.token) throw new GithubAuthError('GitHub returned an empty installation token')
   return body.token
+}
+
+/** Lists repositories visible to an already-minted installation token. */
+export async function listInstallationRepositories(opts: {
+  token: string
+  fetcher?: typeof fetch
+}): Promise<GithubInstallationRepository[]> {
+  const fetcher = opts.fetcher ?? fetch
+  const out: GithubInstallationRepository[] = []
+  for (let page = 1; ; page += 1) {
+    const response = await fetcher(`${API}/installation/repositories?per_page=100&page=${page}`, {
+      headers: {
+        accept: 'application/vnd.github+json',
+        authorization: `Bearer ${opts.token}`,
+        'x-github-api-version': API_VERSION,
+      },
+    })
+    const body = await readJson<{
+      repositories?: Array<{
+        id?: number
+        name?: string
+        full_name?: string
+        private?: boolean
+        default_branch?: string
+        owner?: { login?: string }
+      }>
+    }>(response, 'list installation repositories')
+    const repositories = body.repositories ?? []
+    for (const repo of repositories) {
+      if (!Number.isSafeInteger(repo.id) || !repo.name || !repo.owner?.login) continue
+      out.push({
+        id: repo.id!,
+        name: repo.name,
+        fullName: repo.full_name ?? `${repo.owner.login}/${repo.name}`,
+        owner: repo.owner.login,
+        private: repo.private ?? false,
+        defaultBranch: repo.default_branch ?? 'main',
+      })
+    }
+    if (repositories.length < 100) return out
+  }
 }
 
 export function signAppJwt(appId: string, privateKeyBase64: string, now: Date): string {

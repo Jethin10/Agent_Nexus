@@ -2,7 +2,7 @@ import { normalize, type RawEvent } from '@ascendant/core'
 import { gmailReader, slackHistoryReader } from '@ascendant/connectors'
 import { db, insertEvent, readPolicy } from '@ascendant/db'
 import { scanForInjection } from '@ascendant/router'
-import { inngest } from '@ascendant/workflows'
+import { connectionForOrg, inngest } from '@ascendant/workflows'
 import { ensureDb } from './local-db'
 
 export interface ContextSyncResult {
@@ -57,13 +57,20 @@ export async function persistContextEvents(raws: readonly RawEvent[]) {
 
 export async function syncConfiguredContext(orgId: string): Promise<ContextSyncResult[]> {
   const results: ContextSyncResult[] = []
+  await ensureDb()
+  const database = db()
+  const [gmailConnection, slackConnection] = await Promise.all([
+    connectionForOrg(database, orgId, 'gmail'),
+    connectionForOrg(database, orgId, 'slack'),
+  ])
 
-  const gmailReady = process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN
+  const gmailRefreshToken = gmailConnection?.refreshToken ?? process.env.GMAIL_REFRESH_TOKEN
+  const gmailReady = process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && gmailRefreshToken
   if (gmailReady) {
     const raws = await gmailReader({
       clientId: process.env.GMAIL_CLIENT_ID as string,
       clientSecret: process.env.GMAIL_CLIENT_SECRET as string,
-      refreshToken: process.env.GMAIL_REFRESH_TOKEN as string,
+      refreshToken: gmailRefreshToken as string,
       query: process.env.GMAIL_QUERY,
       maxMessages: positiveInt(process.env.GMAIL_MAX_MESSAGES, 25),
     }).read(orgId)
@@ -71,10 +78,11 @@ export async function syncConfiguredContext(orgId: string): Promise<ContextSyncR
     results.push({ source: 'gmail', read: raws.length, ...stored })
   }
 
-  const slackChannel = process.env.SLACK_INGEST_CHANNEL_ID || process.env.SLACK_CHANNEL_ID
-  if (process.env.SLACK_BOT_TOKEN && slackChannel) {
+  const slackToken = slackConnection?.botToken ?? process.env.SLACK_BOT_TOKEN
+  const slackChannel = slackConnection?.channelId ?? process.env.SLACK_INGEST_CHANNEL_ID ?? process.env.SLACK_CHANNEL_ID
+  if (slackToken && slackChannel) {
     const raws = await slackHistoryReader({
-      token: process.env.SLACK_BOT_TOKEN,
+      token: slackToken,
       channel: slackChannel,
       maxMessages: positiveInt(process.env.SLACK_MAX_MESSAGES, 40),
     }).read(orgId)

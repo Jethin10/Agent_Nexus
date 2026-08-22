@@ -5,7 +5,7 @@
   "description": "Decides what to build. Then builds it.",
   "packageManager": "pnpm@9.15.4",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "build": "pnpm -r build",
@@ -21,6 +21,7 @@
     "demo": "tsx scripts/demo.ts",
     "demo:build": "tsx scripts/demo-build.ts",
     "integrations:check": "tsx scripts/integrations-check.ts",
+    "deploy:check": "tsx scripts/deploy-check.ts",
     "corpus:sync": "tsx scripts/sync-github-corpus.ts",
     "eval": "tsx scripts/eval.ts"
   },

@@ -111,6 +111,18 @@ describe('dashboard auth', () => {
     }
   })
 
+  it('exempts only GET OAuth callbacks and still protects connection mutations', async () => {
+    for (const path of [
+      '/api/connect/github/callback',
+      '/api/connect/slack/callback',
+      '/api/connect/google/callback',
+    ]) {
+      expect((await middleware(req(path))).status).toBe(200)
+      expect((await middleware(new NextRequest(`http://localhost:3000${path}`, { method: 'POST' }))).status).toBe(401)
+    }
+    expect((await middleware(req('/api/connect/github'))).status).toBe(401)
+  })
+
   it('falls open only when no password is configured', async () => {
     delete process.env.ASCENDANT_DASHBOARD_PASSWORD
     // Local `pnpm dev` on localhost. The production build guard in next.config.ts is

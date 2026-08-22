@@ -61,7 +61,26 @@ describe('deploy guard', () => {
   it('requires durable database and signed workflow configuration only on deploys', () => {
     expect(missingDeploymentRuntimeConfig({})).toEqual([])
     expect(missingDeploymentRuntimeConfig({ VERCEL: '1' })).toEqual(
-      expect.arrayContaining(['DATABASE_URL', 'INNGEST_EVENT_KEY', 'INNGEST_SIGNING_KEY', 'GITHUB_APP_ID', 'E2B_API_KEY']),
+      expect.arrayContaining([
+        'DATABASE_URL',
+        'INNGEST_EVENT_KEY',
+        'INNGEST_SIGNING_KEY',
+        'GITHUB_APP_ID',
+        'E2B_API_KEY',
+        'SLACK_CLIENT_ID',
+        'GMAIL_CLIENT_ID',
+        'OAUTH_STATE_SECRET',
+        'ASCENDANT_CONNECTIONS_KEY',
+      ]),
+    )
+    expect(missingDeploymentRuntimeConfig({ VERCEL: '1' })).not.toEqual(
+      expect.arrayContaining([
+        'GITHUB_OWNER',
+        'GITHUB_REPO',
+        'SLACK_BOT_TOKEN',
+        'SLACK_CHANNEL_ID',
+        'GMAIL_REFRESH_TOKEN',
+      ]),
     )
     const complete = Object.fromEntries(
       missingDeploymentRuntimeConfig({ VERCEL: '1' }).map((key) => [key, 'configured']),

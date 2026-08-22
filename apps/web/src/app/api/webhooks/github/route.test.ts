@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   send: vi.fn(),
   insertEvent: vi.fn(),
   parse: vi.fn(),
+  connectionForOrg: vi.fn(),
 }))
 
 vi.mock('@ascendant/core', () => ({
@@ -36,6 +37,7 @@ vi.mock('@ascendant/router', () => ({
 
 vi.mock('@ascendant/workflows', () => ({
   inngest: { send: mocks.send },
+  connectionForOrg: mocks.connectionForOrg,
 }))
 
 vi.mock('@/lib/org', () => ({
@@ -69,6 +71,7 @@ beforeEach(() => {
     },
   ])
   mocks.send.mockReset().mockResolvedValue({ ids: ['inngest-id'] })
+  mocks.connectionForOrg.mockReset().mockResolvedValue(undefined)
   mocks.insertEvent
     .mockReset()
     .mockResolvedValueOnce({ row, inserted: true })
@@ -80,7 +83,7 @@ afterEach(() => {
 })
 
 describe('GitHub webhook dispatch recovery', () => {
-  const request = () =>
+  const request = (payload: Record<string, unknown> = { action: 'opened' }) =>
     new Request('http://localhost/api/webhooks/github', {
       method: 'POST',
       headers: {
@@ -88,7 +91,7 @@ describe('GitHub webhook dispatch recovery', () => {
         'x-github-delivery': 'delivery-42',
         'x-hub-signature-256': 'sha256=accepted-by-mock',
       },
-      body: JSON.stringify({ action: 'opened' }),
+      body: JSON.stringify(payload),
     })
 
   it('resends an existing row with the same Inngest idempotency key', async () => {
@@ -125,5 +128,27 @@ describe('GitHub webhook dispatch recovery', () => {
     expect(response.status).toBe(403)
     expect(mocks.insertEvent).not.toHaveBeenCalled()
     expect(mocks.send).not.toHaveBeenCalled()
+  })
+
+  it('uses the persisted installation and repository instead of stale env selection', async () => {
+    mocks.connectionForOrg.mockResolvedValue({
+      provider: 'github', installationId: 99, owner: 'connected', repo: 'project',
+    })
+    mocks.parse.mockResolvedValueOnce([{
+      orgId: 'org_live', source: 'github', sourceRef: 'connected/project#7',
+      kind: 'issue', title: 'Connected issue', body: 'Authorized through the installed app.',
+    }])
+    const response = await POST(request({ action: 'opened', installation: { id: 99 } }))
+    expect(response.status).toBe(202)
+    expect(mocks.insertEvent).toHaveBeenCalledOnce()
+  })
+
+  it('rejects a webhook signed for a different GitHub App installation', async () => {
+    mocks.connectionForOrg.mockResolvedValue({
+      provider: 'github', installationId: 99, owner: 'connected', repo: 'project',
+    })
+    const response = await POST(request({ action: 'opened', installation: { id: 100 } }))
+    expect(response.status).toBe(403)
+    expect(mocks.insertEvent).not.toHaveBeenCalled()
   })
 })
