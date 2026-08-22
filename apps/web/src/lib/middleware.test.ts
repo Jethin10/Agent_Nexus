@@ -21,15 +21,20 @@ function req(path: string, auth?: string): NextRequest {
 const basic = (user: string, pass: string) => `Basic ${btoa(`${user}:${pass}`)}`
 
 let saved: string | undefined
+let savedDemo: string | undefined
 
 beforeEach(() => {
   saved = process.env.ASCENDANT_DASHBOARD_PASSWORD
+  savedDemo = process.env.ASCENDANT_DEMO_MODE
+  delete process.env.ASCENDANT_DEMO_MODE
   process.env.ASCENDANT_DASHBOARD_PASSWORD = PASSWORD
 })
 
 afterEach(() => {
   if (saved === undefined) delete process.env.ASCENDANT_DASHBOARD_PASSWORD
   else process.env.ASCENDANT_DASHBOARD_PASSWORD = saved
+  if (savedDemo === undefined) delete process.env.ASCENDANT_DEMO_MODE
+  else process.env.ASCENDANT_DEMO_MODE = savedDemo
 })
 
 describe('dashboard auth', () => {
@@ -134,5 +139,11 @@ describe('dashboard auth', () => {
     process.env.ASCENDANT_DASHBOARD_PASSWORD = ' '
     expect((await middleware(req('/policy'))).status).toBe(401)
     expect((await middleware(req('/policy', basic('x', ' ')))).status).toBe(200)
+  })
+
+  it('makes an explicit public demo readable but rejects mutations', async () => {
+    process.env.ASCENDANT_DEMO_MODE = '1'
+    expect((await middleware(req('/'))).status).toBe(200)
+    expect((await middleware(new NextRequest('http://localhost:3000/policy', { method: 'POST' }))).status).toBe(403)
   })
 })

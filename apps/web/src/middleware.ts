@@ -79,6 +79,16 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return NextResponse.next()
   }
 
+  // A hosted portfolio/demo build is deliberately public but strictly read-only. It
+  // uses static showcase data and cannot reach provider credentials or the database.
+  if (process.env.ASCENDANT_DEMO_MODE === '1') {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return NextResponse.next()
+    return new NextResponse('The public demo is read-only.', {
+      status: 403,
+      headers: { 'Cache-Control': 'no-store' },
+    })
+  }
+
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     const origin = req.headers.get('origin')
     const fetchSite = req.headers.get('sec-fetch-site')

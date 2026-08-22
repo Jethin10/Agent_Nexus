@@ -25,12 +25,13 @@ export interface CommandCenterRow {
 
 type InboxTab = 'all' | 'approval' | 'running' | 'done'
 
-export function CommandCenterDashboard({ initialRows, selectedId, initialQuery = '', initialTab = 'all', liveLocal = false, error: initialError }: {
+export function CommandCenterDashboard({ initialRows, selectedId, initialQuery = '', initialTab = 'all', liveLocal = false, demo = false, error: initialError }: {
   initialRows: CommandCenterRow[]
   selectedId?: string
   initialQuery?: string
   initialTab?: InboxTab
   liveLocal?: boolean
+  demo?: boolean
   error?: string
 }) {
   const [rows, setRows] = useState(initialRows)
@@ -83,7 +84,7 @@ export function CommandCenterDashboard({ initialRows, selectedId, initialQuery =
       <section className="command-inbox" aria-labelledby="command-inbox-title">
         <header className="command-panel-header">
           <h1 id="command-inbox-title">Inbox</h1>
-          <span className={`sync-state${liveLocal ? ' is-live' : ''}`}><i />{liveLocal ? 'Live' : 'Synced'}</span>
+          <span className={`sync-state${liveLocal ? ' is-live' : ''}`}><i />{demo ? 'Demo' : liveLocal ? 'Live' : 'Synced'}</span>
         </header>
         <label className="command-search"><SearchIcon /><span className="sr-only">Search runs</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search runs" /></label>
         <div className="command-tabs" role="tablist" aria-label="Inbox filters">
@@ -104,13 +105,13 @@ export function CommandCenterDashboard({ initialRows, selectedId, initialQuery =
           )) : <div className="command-empty"><strong>No matching runs</strong><span>Connect a source or clear the current filter.</span></div>}
         </div>
       </section>
-      <main className="run-canvas">{active ? <RunCanvas row={active} /> : <EmptyRun />}</main>
+      <main className="run-canvas">{active ? <RunCanvas row={active} demo={demo} /> : <EmptyRun />}</main>
       <aside className="run-inspector" aria-label="Run evidence and details">{active ? <RunInspector row={active} /> : <EmptyInspector />}</aside>
     </div>
   )
 }
 
-function RunCanvas({ row }: { row: CommandCenterRow }) {
+function RunCanvas({ row, demo = false }: { row: CommandCenterRow; demo?: boolean }) {
   const stages = deriveStages(row)
   const confidence = row.confidence === null ? null : Math.round(row.confidence * 100)
   return (
@@ -139,7 +140,7 @@ function RunCanvas({ row }: { row: CommandCenterRow }) {
         <div><span>Evidence</span><strong>{row.citations?.length ?? 0} sources</strong></div>
         <div><span>Execution</span><strong>{row.ticketStatus ?? 'Not started'}</strong></div>
       </section>
-      {row.needsReview ? <section className="approval-banner"><div className="approval-icon"><ShieldIcon /></div><div><strong>Approval required</strong><p>This decision is ready for a human check before execution continues.</p></div><Link href={`/events/${row.eventId}`}>Review &amp; decide <ArrowIcon /></Link></section> : <div className="run-footer-action"><span>{row.outcome ? 'Decision recorded in the ledger' : 'The agent will continue when analysis completes.'}</span><Link href={`/events/${row.eventId}`}>Open run <ArrowIcon /></Link></div>}
+      {row.needsReview ? <section className="approval-banner"><div className="approval-icon"><ShieldIcon /></div><div><strong>Approval required</strong><p>This decision is ready for a human check before execution continues.</p></div><Link href={demo ? '/integrations' : `/events/${row.eventId}`}>{demo ? 'Explore connections' : 'Review & decide'} <ArrowIcon /></Link></section> : <div className="run-footer-action"><span>{row.outcome ? 'Decision recorded in the ledger' : 'The agent will continue when analysis completes.'}</span><Link href={demo ? '/integrations' : `/events/${row.eventId}`}>{demo ? 'Explore connections' : 'Open run'} <ArrowIcon /></Link></div>}
     </div>
   )
 }

@@ -38,6 +38,12 @@ describe('deploy guard', () => {
     expect(shouldBlockBuild({ VERCEL: '1', ASCENDANT_ALLOW_OPEN_DASHBOARD: '1' })).toBe(false)
   })
 
+  it('allows an explicitly read-only showcase deploy without provider secrets', () => {
+    const env = { VERCEL: '1', ASCENDANT_DEMO_MODE: '1' }
+    expect(shouldBlockBuild(env)).toBe(false)
+    expect(missingDeploymentRuntimeConfig(env)).toEqual([])
+  })
+
   it('treats any value other than exactly "1" as not opting out', () => {
     for (const v of ['0', 'true', 'yes', '']) {
       expect(shouldBlockBuild({ VERCEL: '1', ASCENDANT_ALLOW_OPEN_DASHBOARD: v })).toBe(true)

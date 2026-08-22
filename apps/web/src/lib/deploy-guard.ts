@@ -33,6 +33,7 @@ export function isDeployment(env: GuardEnv): boolean {
  */
 export function shouldBlockBuild(env: GuardEnv): boolean {
   if (!isDeployment(env)) return false
+  if (env.ASCENDANT_DEMO_MODE === '1') return false
   if (env.ASCENDANT_ALLOW_OPEN_DASHBOARD === '1') return false
   return !env.ASCENDANT_DASHBOARD_PASSWORD
 }
@@ -61,6 +62,7 @@ export const REQUIRED_DEPLOYMENT_ENV = [
 /** Core server data and workflow authentication must never degrade silently in a deploy. */
 export function missingDeploymentRuntimeConfig(env: GuardEnv): string[] {
   if (!isDeployment(env)) return []
+  if (env.ASCENDANT_DEMO_MODE === '1') return []
   return REQUIRED_DEPLOYMENT_ENV.filter((key) => !env[key])
 }
 
