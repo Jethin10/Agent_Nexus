@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { integrationReadiness, type IntegrationReadiness } from './readiness.js'
+import {
+  connectionAwareIntegrationReadiness,
+  integrationReadiness,
+  type IntegrationReadiness,
+} from './readiness.js'
 
 const byId = (env: Record<string, string | undefined>) =>
   Object.fromEntries(integrationReadiness(env).map((item) => [item.id, item])) as Record<
@@ -98,5 +102,56 @@ describe('integrationReadiness', () => {
 
     expect(checks.inngest.status).toBe('degraded')
     expect(checks.slack.status).toBe('degraded')
+  })
+})
+
+describe('connectionAwareIntegrationReadiness', () => {
+  it('marks provider checks ready from valid workspace grants plus server infrastructure', () => {
+    const checks = Object.fromEntries(connectionAwareIntegrationReadiness({
+      github: { repositorySelected: true },
+      slack: { reviewerConfigured: true },
+      gmail: true,
+    }, {
+      GITHUB_APP_ID: '123',
+      GITHUB_APP_PRIVATE_KEY_BASE64: 'private-secret',
+      GITHUB_WEBHOOK_SECRET: 'webhook-secret',
+      SLACK_SIGNING_SECRET: 'slack-signing-secret',
+      GMAIL_CLIENT_ID: 'gmail-client',
+      GMAIL_CLIENT_SECRET: 'gmail-secret',
+    }).map((item) => [item.id, item])) as Record<IntegrationReadiness['id'], IntegrationReadiness>
+
+    expect(checks.github.status).toBe('ready')
+    expect(checks.slack.status).toBe('ready')
+    expect(checks.gmail.status).toBe('ready')
+    expect(JSON.stringify(checks)).not.toContain('private-secret')
+    expect(JSON.stringify(checks)).not.toContain('gmail-secret')
+  })
+
+  it('keeps connected providers degraded when required server infrastructure is missing', () => {
+    const checks = Object.fromEntries(connectionAwareIntegrationReadiness({
+      github: { repositorySelected: false },
+      slack: { reviewerConfigured: false },
+      gmail: true,
+    }, {}).map((item) => [item.id, item])) as Record<IntegrationReadiness['id'], IntegrationReadiness>
+
+    expect(checks.github).toMatchObject({ status: 'degraded' })
+    expect(checks.github.detail).toContain('select')
+    expect(checks.slack).toMatchObject({ status: 'degraded' })
+    expect(checks.gmail).toMatchObject({ status: 'degraded' })
+  })
+
+  it('does not change strict environment-only readiness', () => {
+    const strict = byId({
+      GITHUB_APP_ID: '123',
+      GITHUB_APP_PRIVATE_KEY_BASE64: 'private-secret',
+      GITHUB_WEBHOOK_SECRET: 'webhook-secret',
+      SLACK_SIGNING_SECRET: 'slack-signing-secret',
+      GMAIL_CLIENT_ID: 'gmail-client',
+      GMAIL_CLIENT_SECRET: 'gmail-secret',
+    })
+
+    expect(strict.github.status).toBe('degraded')
+    expect(strict.slack.status).toBe('degraded')
+    expect(strict.gmail.status).toBe('degraded')
   })
 })

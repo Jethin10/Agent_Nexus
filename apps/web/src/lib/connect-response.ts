@@ -4,6 +4,7 @@ import { publicOrigin } from './public-url'
 
 export function beginOAuth(url: URL, issued: OAuthState): NextResponse {
   const response = NextResponse.redirect(url)
+  response.headers.set('cache-control', 'no-store')
   response.cookies.set(issued.cookieName, issued.cookieValue, issued.cookie)
   return response
 }
@@ -12,6 +13,7 @@ export function finishOAuth(requestUrl: string, returnTo: string, provider: Conn
   const url = new URL(returnTo, publicOrigin(requestUrl))
   url.searchParams.set('connected', resultProvider)
   const response = NextResponse.redirect(url)
+  response.headers.set('cache-control', 'no-store')
   response.cookies.delete(oauthStateCookieName(provider))
   return response
 }
@@ -21,6 +23,7 @@ export function failOAuth(requestUrl: string, provider: ConnectProvider, error: 
   url.searchParams.set('connectError', provider)
   url.searchParams.set('reason', safeProviderError(error))
   const response = NextResponse.redirect(url)
+  response.headers.set('cache-control', 'no-store')
   response.cookies.delete(oauthStateCookieName(provider))
   return response
 }

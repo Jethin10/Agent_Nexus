@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { connectionForOrg, connectionSummaries, githubInstallationToken, integrationReadiness, listInstallationRepositories, type ConnectionProvider, type ConnectionSummary } from '@ascendant/workflows'
+import { connectionAwareIntegrationReadiness, connectionForOrg, connectionSummaries, githubInstallationToken, listInstallationRepositories, type ConnectionProvider, type ConnectionSummary } from '@ascendant/workflows'
 import { db } from '@ascendant/db'
 import { ensureDb, isLocalDb } from '@/lib/local-db'
 import { currentOrgId } from '@/lib/org'
@@ -19,7 +19,7 @@ export default async function IntegrationsPage({ searchParams }: Props) {
   const params = await searchParams
   const { summaries, githubRepositories, loadError } = await loadConnections()
   const byProvider = new Map(summaries.map((summary) => [summary.provider, summary]))
-  const runtime = integrationReadiness()
+  const runtime = connectionAwareIntegrationReadiness(connectionReadiness(summaries))
   const runtimeReady = runtime.filter((item) => item.status === 'ready').length
   return (
     <main className="connections-page">
@@ -50,6 +50,17 @@ export default async function IntegrationsPage({ searchParams }: Props) {
       <section className="runtime-readiness"><div className="runtime-readiness-heading"><div><span className="eyebrow">Production infrastructure</span><h2>{runtimeReady}/{runtime.length} runtime checks ready</h2></div><code>pnpm integrations:check --strict</code></div><div className="runtime-checks">{runtime.map((item) => <div key={item.id}><span className={`runtime-dot status-${item.status}`} /><strong>{item.name}</strong><small>{item.detail}</small></div>)}</div></section>
     </main>
   )
+}
+
+function connectionReadiness(summaries: ConnectionSummary[]) {
+  const github = summaries.find((summary) => summary.provider === 'github')
+  const slack = summaries.find((summary) => summary.provider === 'slack')
+  const gmail = summaries.some((summary) => summary.provider === 'gmail')
+  return {
+    ...(github ? { github: { repositorySelected: Boolean(github.owner && github.repo) } } : {}),
+    ...(slack ? { slack: { reviewerConfigured: Boolean(slack.reviewerCount) } } : {}),
+    ...(gmail ? { gmail: true as const } : {}),
+  }
 }
 
 async function loadConnections(): Promise<{ summaries: ConnectionSummary[]; githubRepositories: Array<{ fullName: string }>; loadError?: string }> {

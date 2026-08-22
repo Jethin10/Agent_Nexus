@@ -8,6 +8,13 @@ export interface IntegrationReadiness {
   required: readonly string[]
 }
 
+/** Credential-safe facts derived from validated, decrypted workspace connections. */
+export interface WorkspaceConnectionReadiness {
+  github?: { repositorySelected: boolean }
+  slack?: { reviewerConfigured: boolean }
+  gmail?: true
+}
+
 /**
  * Configuration-only production readiness. This never returns credential values and
  * never makes a network request, so it is safe to render in the authenticated dashboard.
@@ -158,6 +165,61 @@ export function integrationReadiness(
       required: ['ASCENDANT_DASHBOARD_PASSWORD', 'ASCENDANT_OPERATOR_NAME'],
     },
   ]
+}
+
+/**
+ * Overlay workspace OAuth grants onto the environment-only production checks.
+ *
+ * The CLI deliberately continues to call `integrationReadiness()` so deployment
+ * probes stay strict and reproducible from environment configuration alone. Server
+ * surfaces can call this function after reading validated encrypted connections.
+ */
+export function connectionAwareIntegrationReadiness(
+  connections: WorkspaceConnectionReadiness,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): IntegrationReadiness[] {
+  return integrationReadiness(env).map((check) => {
+    if (check.id === 'github' && connections.github) {
+      const appConfigured = has(env, 'GITHUB_APP_ID', 'GITHUB_APP_PRIVATE_KEY_BASE64')
+      const webhookConfigured = Boolean(env.GITHUB_WEBHOOK_SECRET)
+      const ready = appConfigured && webhookConfigured && connections.github.repositorySelected
+      return {
+        ...check,
+        status: ready ? 'ready' : 'degraded',
+        detail: ready
+          ? 'The installed GitHub App, selected repository, and signed webhook receiver are configured.'
+          : connections.github.repositorySelected
+            ? 'The repository grant is connected, but GitHub App credentials or webhook signing are incomplete.'
+            : 'The GitHub App is connected; select one installed repository before agents can run.',
+      }
+    }
+
+    if (check.id === 'slack' && connections.slack) {
+      const ready = Boolean(env.SLACK_SIGNING_SECRET) && connections.slack.reviewerConfigured
+      return {
+        ...check,
+        status: ready ? 'ready' : 'degraded',
+        detail: ready
+          ? 'The encrypted workspace grant enables signed ingestion, channel sync, notifications, and reviewer actions.'
+          : connections.slack.reviewerConfigured
+            ? 'Slack is connected, but webhook and interaction signing are not configured.'
+            : 'Slack is connected, but no authorized reviewer is configured.',
+      }
+    }
+
+    if (check.id === 'gmail' && connections.gmail) {
+      const ready = has(env, 'GMAIL_CLIENT_ID', 'GMAIL_CLIENT_SECRET')
+      return {
+        ...check,
+        status: ready ? 'ready' : 'degraded',
+        detail: ready
+          ? `The encrypted read-only grant is configured${env.GMAIL_QUERY ? ` for query “${env.GMAIL_QUERY}”` : ' for the label:ascendant safety scope'}.`
+          : 'Gmail is connected, but the server OAuth client configuration is incomplete.',
+      }
+    }
+
+    return check
+  })
 }
 
 function has(env: Readonly<Record<string, string | undefined>>, ...keys: string[]): boolean {

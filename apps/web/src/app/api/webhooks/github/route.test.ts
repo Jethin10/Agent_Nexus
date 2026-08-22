@@ -95,7 +95,9 @@ describe('GitHub webhook dispatch recovery', () => {
     })
 
   it('resends an existing row with the same Inngest idempotency key', async () => {
-    expect((await POST(request())).status).toBe(202)
+    const first = await POST(request())
+    expect(first.status).toBe(202)
+    expect(first.headers.get('cache-control')).toBe('no-store')
     expect((await POST(request())).status).toBe(202)
 
     expect(mocks.send).toHaveBeenCalledTimes(2)
