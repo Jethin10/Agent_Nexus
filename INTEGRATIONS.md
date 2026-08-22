@@ -228,6 +228,15 @@ public deployment.
 
 ## Production cutover
 
+The production topology uses Vercel for the command-center UI and Render for the
+operational `/api/*` surface and managed Postgres. Set `ASCENDANT_BACKEND_URL` in
+Vercel to the Render service origin. Both runtimes use the same provider credentials
+and database so server-rendered pages and approval actions share one audit trail.
+
+Render is defined by the repository-root `render.yaml`. Apply it from the Render
+Dashboard, fill every `sync: false` secret, and copy the resulting service URL into
+the Vercel environment before deploying the frontend.
+
 Set `ASCENDANT_DASHBOARD_PASSWORD` and a stable audit identity in
 `ASCENDANT_OPERATOR_NAME`. Deployment builds reject incomplete production configuration
 instead of silently exposing partial integrations.

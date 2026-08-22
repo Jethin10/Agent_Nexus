@@ -17,6 +17,7 @@
     "web:build": "pnpm --filter @ascendant/web build",
     "db:generate": "pnpm --filter @ascendant/db generate",
     "db:push": "pnpm --filter @ascendant/db push",
+    "db:migrate": "pnpm --filter @ascendant/db exec drizzle-kit migrate",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "demo": "tsx scripts/demo.ts",
     "demo:build": "tsx scripts/demo-build.ts",

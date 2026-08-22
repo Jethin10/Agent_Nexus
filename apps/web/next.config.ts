@@ -25,6 +25,8 @@ if (missingRuntime.length > 0) {
   )
 }
 
+const backendOrigin = productionBackendOrigin(process.env.ASCENDANT_BACKEND_URL)
+
 /**
  * The workspace packages are consumed as TypeScript source, not as built JS — see
  * `main: ./src/index.ts` in each package.json. `transpilePackages` is what lets Next
@@ -65,6 +67,13 @@ const config: NextConfig = {
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },
 
+  /** Vercel serves the UI while Render owns the operational API surface. */
+  async rewrites() {
+    return backendOrigin
+      ? [{ source: '/api/:path*', destination: `${backendOrigin}/api/:path*` }]
+      : []
+  },
+
   /**
    * `@ascendant/core` and `@ascendant/connectors` write ESM-correct relative imports
    * with a `.js` extension (`./ids.js`), while `@ascendant/db` deliberately omits them
@@ -92,3 +101,12 @@ const config: NextConfig = {
 }
 
 export default config
+
+function productionBackendOrigin(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  const url = new URL(value)
+  if (url.protocol !== 'https:' && url.hostname !== 'localhost') {
+    throw new Error('ASCENDANT_BACKEND_URL must use HTTPS outside local development')
+  }
+  return url.origin
+}

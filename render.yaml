@@ -1,0 +1,63 @@
+services:
+  - type: web
+    name: ascendant-backend
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    autoDeploy: true
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm db:migrate && pnpm web:build
+    startCommand: pnpm --filter @ascendant/web start --hostname 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.18.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ascendant-postgres
+          property: connectionString
+      - key: ASCENDANT_CONNECTIONS_KEY
+        generateValue: true
+      - key: OAUTH_STATE_SECRET
+        generateValue: true
+      - key: ASCENDANT_DASHBOARD_PASSWORD
+        sync: false
+      - key: ASCENDANT_OPERATOR_NAME
+        value: render-operator
+      - key: ASCENDANT_ORG_ID
+        value: org_default
+      - key: INNGEST_EVENT_KEY
+        sync: false
+      - key: INNGEST_SIGNING_KEY
+        sync: false
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_APP_SLUG
+        sync: false
+      - key: GITHUB_APP_PRIVATE_KEY_BASE64
+        sync: false
+      - key: GITHUB_WEBHOOK_SECRET
+        sync: false
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      - key: SLACK_SIGNING_SECRET
+        sync: false
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: E2B_API_KEY
+        sync: false
+
+databases:
+  - name: ascendant-postgres
+    databaseName: ascendant
+    user: ascendant
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"
+    ipAllowList: []
