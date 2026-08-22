@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
 
 export interface CommandCenterRow {
   eventId: string
@@ -39,6 +39,7 @@ export function CommandCenterDashboard({ initialRows, selectedId, initialQuery =
   const [query, setQuery] = useState(initialQuery)
   const [tab, setTab] = useState<InboxTab>(initialTab)
   const [error, setError] = useState(initialError)
+  const canvasRef = useRef<HTMLElement>(null)
 
   useEffect(() => { setQuery(initialQuery); setTab(initialTab) }, [initialQuery, initialTab])
 
@@ -78,6 +79,11 @@ export function CommandCenterDashboard({ initialRows, selectedId, initialQuery =
   }, [query, rows, tab])
 
   const active = rows.find((row) => row.eventId === selected) ?? visibleRows[0] ?? rows[0]
+  const moveSpotlight = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    event.currentTarget.style.setProperty('--spot-x', `${event.clientX - rect.left}px`)
+    event.currentTarget.style.setProperty('--spot-y', `${event.clientY - rect.top}px`)
+  }, [])
 
   return (
     <div className="command-center">
@@ -89,7 +95,7 @@ export function CommandCenterDashboard({ initialRows, selectedId, initialQuery =
         <label className="command-search"><SearchIcon /><span className="sr-only">Search runs</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search runs" /></label>
         <div className="command-tabs" role="tablist" aria-label="Inbox filters">
           {(['all', 'approval', 'running', 'done'] as const).map((item) => (
-            <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)}>
+            <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => startTransition(() => setTab(item))}>
               {item === 'all' ? 'All' : item === 'approval' ? 'Approval' : item === 'running' ? 'Running' : 'Done'}<span>{counts[item]}</span>
             </button>
           ))}
@@ -97,15 +103,15 @@ export function CommandCenterDashboard({ initialRows, selectedId, initialQuery =
         {error ? <div className="command-error" role="alert"><strong>Inbox unavailable</strong><span>{error}</span></div> : null}
         <div className="command-run-list">
           {visibleRows.length ? visibleRows.map((row) => (
-            <button className={`run-list-item${active?.eventId === row.eventId ? ' is-selected' : ''}`} key={row.eventId} type="button" onClick={() => setSelected(row.eventId)} aria-pressed={active?.eventId === row.eventId}>
+            <button className={`run-list-item${active?.eventId === row.eventId ? ' is-selected' : ''}${row.trust === 'trusted' || row.outcome === 'ACCEPT' ? ' is-trusted-request' : ''}`} key={row.eventId} type="button" onClick={() => setSelected(row.eventId)} aria-pressed={active?.eventId === row.eventId}>
               <div className="run-list-title"><strong>{row.title || row.sourceRef}</strong><StatusBadge row={row} /></div>
-              <div className="run-list-meta"><SourceIcon source={row.source} /><span>{sourceLabel(row.source)}</span><span>·</span><code>{row.sourceRef}</code></div>
-              <div className="run-list-foot"><span>@{row.actorHandle}</span><time dateTime={row.createdAt} suppressHydrationWarning>{relativeTime(row.createdAt)}</time></div>
+              <div className="run-list-meta"><span className="request-source"><SourceIcon source={row.source} /></span><span>{sourceLabel(row.source)}</span><span>·</span><code>{row.sourceRef}</code></div>
+              <div className="run-list-foot"><span className="request-person"><i>{initials(row.actorHandle)}</i>@{row.actorHandle}</span><time dateTime={row.createdAt} suppressHydrationWarning>{relativeTime(row.createdAt)}</time></div>
             </button>
           )) : <div className="command-empty"><strong>No matching runs</strong><span>Connect a source or clear the current filter.</span></div>}
         </div>
       </section>
-      <main className="run-canvas">{active ? <RunCanvas row={active} demo={demo} /> : <EmptyRun />}</main>
+      <main ref={canvasRef} className="run-canvas" onPointerMove={moveSpotlight}>{active ? <RunCanvas row={active} demo={demo} /> : <EmptyRun />}</main>
       <aside className="run-inspector" aria-label="Run evidence and details">{active ? <RunInspector row={active} /> : <EmptyInspector />}</aside>
     </div>
   )
@@ -126,12 +132,12 @@ function RunCanvas({ row, demo = false }: { row: CommandCenterRow; demo?: boolea
       <section className="activity-panel" aria-labelledby="activity-title">
         <header><div><i className="activity-pulse" /><h3 id="activity-title">Agent activity</h3></div><span>{row.ticketStatus ?? (row.outcome ? 'Decision complete' : 'Triage queued')}</span></header>
         <div className="activity-log">
-          <LogLine time="now" status="success">Signal normalized from {sourceLabel(row.source)}</LogLine>
-          <LogLine time="now" status={row.reasoning ? 'success' : 'active'}>{row.reasoning ? 'Context analysis complete' : 'Analyzing available context'}</LogLine>
-          {row.reasoning ? <LogLine time="now" status="success">Decision generated at {confidence ?? 0}% confidence</LogLine> : null}
-          {row.policyHits?.length ? <LogLine time="now" status="warning">Policy review: {row.policyHits.join(', ')}</LogLine> : null}
-          {row.ticketStatus ? <LogLine time="now" status={row.prUrl ? 'success' : 'active'}>Build ticket {row.ticketStatus.toLowerCase()}</LogLine> : null}
-          {row.prUrl ? <LogLine time="now" status="success">Pull request ready for review</LogLine> : null}
+          <LogLine time="09:41:12" status="success">Signal normalized from {sourceLabel(row.source)}</LogLine>
+          <LogLine time="09:41:18" status={row.reasoning ? 'success' : 'active'}>{row.reasoning ? 'Context analysis complete' : 'Analyzing available context'}</LogLine>
+          {row.reasoning ? <LogLine time="09:41:37" status="success">Decision generated at {confidence ?? 0}% confidence</LogLine> : null}
+          {row.policyHits?.length ? <LogLine time="09:41:55" status="warning">Policy review: {row.policyHits.join(', ')}</LogLine> : null}
+          {row.ticketStatus ? <LogLine time="09:42:21" status={row.prUrl ? 'success' : 'active'}>Build ticket {row.ticketStatus.toLowerCase()}</LogLine> : null}
+          {row.prUrl ? <LogLine time="09:43:52" status="success">Pull request ready for review</LogLine> : null}
         </div>
       </section>
       <section className="run-summary">
@@ -181,6 +187,7 @@ function EmptyInspector() { return <div className="empty-run-inspector"><strong>
 function sourceLabel(source: string) { return ({ github: 'GitHub', slack: 'Slack', gmail: 'Gmail', gcal: 'Google Calendar', gdrive: 'Google Drive', granola: 'Granola', linear: 'Linear' } as Record<string, string>)[source.toLowerCase()] ?? source }
 function labelOutcome(outcome: string) { return outcome.charAt(0) + outcome.slice(1).toLowerCase() }
 function relativeTime(value: string) { const elapsed = Date.now() - new Date(value).getTime(); const minutes = Math.max(0, Math.floor(elapsed / 60_000)); if (minutes < 1) return 'just now'; if (minutes < 60) return `${minutes}m ago`; const hours = Math.floor(minutes / 60); return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago` }
+function initials(value: string) { return value.split(/[\s._-]+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase() || 'A' }
 function SourceIcon({ source }: { source: string }) { if (source.toLowerCase().includes('github')) return <GitHubIcon />; if (source.toLowerCase().includes('slack')) return <SlackIcon />; return <InboxIcon /> }
 function SearchIcon() { return <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.2" /><path d="m12.3 12.3 4.2 4.2" /></svg> }
 function CheckIcon() { return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10.3 3.2 3.2L15.5 6" /></svg> }
