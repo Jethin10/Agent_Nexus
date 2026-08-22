@@ -70,9 +70,17 @@ const config: NextConfig = {
 
   /** Vercel serves the UI while Render owns the operational API surface. */
   async rewrites() {
-    return backendOrigin
-      ? [{ source: '/api/:path*', destination: `${backendOrigin}/api/:path*` }]
-      : []
+    // `beforeFiles` is required because this repository also contains local route
+    // handlers for development and single-service deployments. A plain rewrite array
+    // runs after filesystem matching, so those handlers win and Vercel never reaches
+    // Render even when ASCENDANT_BACKEND_URL is configured.
+    return {
+      beforeFiles: backendOrigin
+        ? [{ source: '/api/:path*', destination: `${backendOrigin}/api/:path*` }]
+        : [],
+      afterFiles: [],
+      fallback: [],
+    }
   },
 
   /**
