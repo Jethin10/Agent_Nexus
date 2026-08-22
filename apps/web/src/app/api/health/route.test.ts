@@ -12,7 +12,7 @@ describe('GET /api/health', () => {
 
     expect(response.status).toBe(503)
     expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(body.status).toBe('degraded')
+    expect(body.status).toBe('unavailable')
     expect(body.database).toBe('unavailable')
     expect(body.integrations.database).not.toBe('ready')
   })

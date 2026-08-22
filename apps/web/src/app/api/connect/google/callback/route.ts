@@ -5,6 +5,7 @@ import { currentOrgId } from '@/lib/org'
 import { ensureDb } from '@/lib/local-db'
 import { failOAuth, finishOAuth } from '@/lib/connect-response'
 import { oauthStateCookieName, verifyOAuthState } from '@/lib/oauth-state'
+import { publicUrl } from '@/lib/public-url'
 
 interface GoogleTokenResponse {
   access_token?: string
@@ -24,7 +25,7 @@ export async function GET(request: Request): Promise<Response> {
     if (requestUrl.searchParams.get('error')) throw new Error('Google authorization was declined')
     const code = requestUrl.searchParams.get('code')
     if (!code) throw new Error('Google did not return an authorization code')
-    const redirectUri = new URL('/api/connect/google/callback', request.url).toString()
+    const redirectUri = publicUrl(request.url, '/api/connect/google/callback')
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

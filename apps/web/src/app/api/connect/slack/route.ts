@@ -1,5 +1,6 @@
 import { createOAuthState } from '@/lib/oauth-state'
 import { beginOAuth } from '@/lib/connect-response'
+import { publicUrl } from '@/lib/public-url'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,7 @@ export async function GET(request: Request): Promise<Response> {
   const authorize = new URL('https://slack.com/oauth/v2/authorize')
   authorize.searchParams.set('client_id', clientId)
   authorize.searchParams.set('scope', 'chat:write,channels:history,groups:history,incoming-webhook')
-  authorize.searchParams.set('redirect_uri', new URL('/api/connect/slack/callback', request.url).toString())
+  authorize.searchParams.set('redirect_uri', publicUrl(request.url, '/api/connect/slack/callback'))
   authorize.searchParams.set('state', issued.state)
   return beginOAuth(authorize, issued)
 }

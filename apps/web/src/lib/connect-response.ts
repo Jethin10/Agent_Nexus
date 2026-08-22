@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { oauthStateCookieName, type ConnectProvider, type OAuthState } from './oauth-state'
+import { publicOrigin } from './public-url'
 
 export function beginOAuth(url: URL, issued: OAuthState): NextResponse {
   const response = NextResponse.redirect(url)
@@ -8,7 +9,7 @@ export function beginOAuth(url: URL, issued: OAuthState): NextResponse {
 }
 
 export function finishOAuth(requestUrl: string, returnTo: string, provider: ConnectProvider, resultProvider: string = provider): NextResponse {
-  const url = new URL(returnTo, requestUrl)
+  const url = new URL(returnTo, publicOrigin(requestUrl))
   url.searchParams.set('connected', resultProvider)
   const response = NextResponse.redirect(url)
   response.cookies.delete(oauthStateCookieName(provider))
@@ -16,7 +17,7 @@ export function finishOAuth(requestUrl: string, returnTo: string, provider: Conn
 }
 
 export function failOAuth(requestUrl: string, provider: ConnectProvider, error: unknown): NextResponse {
-  const url = new URL('/integrations', requestUrl)
+  const url = new URL('/integrations', publicOrigin(requestUrl))
   url.searchParams.set('connectError', provider)
   url.searchParams.set('reason', safeProviderError(error))
   const response = NextResponse.redirect(url)

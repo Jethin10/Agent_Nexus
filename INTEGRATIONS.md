@@ -16,15 +16,18 @@ Use `pnpm integrations:check --strict` before recording or deploying.
 The repository root now contains `vercel.json`, so import the repository with the
 project root left at the repository root. The checked-in configuration pins Node 22,
 installs the frozen pnpm workspace, builds only the Next.js application, and publishes
-`apps/web/.next`. Add the server credentials described below to the Vercel project
-before the first deployment. User-installed tokens, channels, and repositories are
+`apps/web/.next`. Set `ASCENDANT_BACKEND_URL` in Vercel to the Render service origin;
+keep database, encryption, and provider credentials on Render. User-installed tokens, channels, and repositories are
 not deployment variables; they are selected from `/integrations` and encrypted at
-rest. The build fails closed when required runtime or OAuth-app settings are absent.
+rest. The backend build fails closed only when its database or encryption/control-plane
+settings are absent; optional providers report unavailable until configured.
 
 ## One-click account connections
 
 Set `OAUTH_STATE_SECRET` to at least 32 random characters and
-`ASCENDANT_CONNECTIONS_KEY` to 32 random bytes encoded as base64 (or 64 hex
+set `ASCENDANT_PUBLIC_URL` to the browser-facing HTTPS origin. This is required when
+Vercel proxies `/api/*` to Render so OAuth cookies and provider callbacks stay on the
+same public origin. Set `ASCENDANT_CONNECTIONS_KEY` to 32 random bytes encoded as base64 (or 64 hex
 characters). OAuth callbacks require signed ten-minute state tied to an HttpOnly,
 SameSite cookie. Stored refresh and bot tokens use AES-256-GCM with
 organization/provider-bound authenticated data.

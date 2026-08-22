@@ -40,26 +40,23 @@ export function shouldBlockBuild(env: GuardEnv): boolean {
 
 export const REQUIRED_DEPLOYMENT_ENV = [
   'DATABASE_URL',
-  'INNGEST_EVENT_KEY',
-  'INNGEST_SIGNING_KEY',
-  'GITHUB_APP_ID',
-  'GITHUB_APP_SLUG',
-  'GITHUB_APP_PRIVATE_KEY_BASE64',
-  'GITHUB_WEBHOOK_SECRET',
-  'GEMINI_API_KEY',
-  'E2B_API_KEY',
-  'SLACK_CLIENT_ID',
-  'SLACK_CLIENT_SECRET',
-  'SLACK_SIGNING_SECRET',
-  'GMAIL_CLIENT_ID',
-  'GMAIL_CLIENT_SECRET',
   'OAUTH_STATE_SECRET',
   'ASCENDANT_CONNECTIONS_KEY',
   'ASCENDANT_OPERATOR_NAME',
   'ASCENDANT_ORG_ID',
+  'ASCENDANT_PUBLIC_URL',
 ] as const
 
-/** Core server data and workflow authentication must never degrade silently in a deploy. */
+/**
+ * Only configuration required to boot the control plane belongs here.
+ *
+ * Provider credentials are intentionally optional at build time. A workspace starts
+ * with zero connected providers and gains grants through the one-click OAuth routes;
+ * failing the whole deploy because Slack, Google, GitHub, Inngest, a model, or a
+ * sandbox has not been configured yet turns a recoverable readiness state into an
+ * outage. `integrationReadiness()` and each provider route still fail closed and name
+ * the missing configuration without exposing values.
+ */
 export function missingDeploymentRuntimeConfig(env: GuardEnv): string[] {
   if (!isDeployment(env)) return []
   if (env.ASCENDANT_DEMO_MODE === '1') return []

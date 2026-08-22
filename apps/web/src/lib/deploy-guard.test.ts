@@ -64,23 +64,26 @@ describe('deploy guard', () => {
     expect(shouldBlockBuild({ CI: 'true', GITHUB_ACTIONS: 'true' })).toBe(false)
   })
 
-  it('requires durable database and signed workflow configuration only on deploys', () => {
+  it('requires only control-plane configuration to boot a deployment', () => {
     expect(missingDeploymentRuntimeConfig({})).toEqual([])
     expect(missingDeploymentRuntimeConfig({ VERCEL: '1' })).toEqual(
       expect.arrayContaining([
         'DATABASE_URL',
+        'OAUTH_STATE_SECRET',
+        'ASCENDANT_CONNECTIONS_KEY',
+        'ASCENDANT_OPERATOR_NAME',
+        'ASCENDANT_ORG_ID',
+        'ASCENDANT_PUBLIC_URL',
+      ]),
+    )
+    expect(missingDeploymentRuntimeConfig({ VERCEL: '1' })).not.toEqual(
+      expect.arrayContaining([
         'INNGEST_EVENT_KEY',
         'INNGEST_SIGNING_KEY',
         'GITHUB_APP_ID',
         'E2B_API_KEY',
         'SLACK_CLIENT_ID',
         'GMAIL_CLIENT_ID',
-        'OAUTH_STATE_SECRET',
-        'ASCENDANT_CONNECTIONS_KEY',
-      ]),
-    )
-    expect(missingDeploymentRuntimeConfig({ VERCEL: '1' })).not.toEqual(
-      expect.arrayContaining([
         'GITHUB_OWNER',
         'GITHUB_REPO',
         'SLACK_BOT_TOKEN',

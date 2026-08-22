@@ -5,6 +5,7 @@ import { currentOrgId } from '@/lib/org'
 import { ensureDb } from '@/lib/local-db'
 import { failOAuth, finishOAuth } from '@/lib/connect-response'
 import { oauthStateCookieName, verifyOAuthState } from '@/lib/oauth-state'
+import { publicUrl } from '@/lib/public-url'
 
 interface SlackOAuthResponse {
   ok?: boolean
@@ -26,7 +27,7 @@ export async function GET(request: Request): Promise<Response> {
     const code = requestUrl.searchParams.get('code')
     if (!code) throw new Error('Slack did not return an authorization code')
 
-    const redirectUri = new URL('/api/connect/slack/callback', request.url).toString()
+    const redirectUri = publicUrl(request.url, '/api/connect/slack/callback')
     const response = await fetch('https://slack.com/api/oauth.v2.access', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },

@@ -26,6 +26,8 @@ services:
         value: render-operator
       - key: ASCENDANT_ORG_ID
         value: org_default
+      - key: ASCENDANT_PUBLIC_URL
+        value: https://agent-nexus-web-zeta.vercel.app
       - key: INNGEST_EVENT_KEY
         sync: false
       - key: INNGEST_SIGNING_KEY

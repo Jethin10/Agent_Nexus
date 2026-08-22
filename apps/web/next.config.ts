@@ -21,7 +21,7 @@ const missingRuntime = missingDeploymentRuntimeConfig(process.env)
 if (missingRuntime.length > 0) {
   throw new Error(
     `Production runtime configuration is incomplete: ${missingRuntime.join(', ')}. ` +
-      'Deployments require durable Postgres plus signed Inngest publishing and execution.',
+      'Deployments require durable Postgres plus encrypted workspace connection storage.',
   )
 }
 
