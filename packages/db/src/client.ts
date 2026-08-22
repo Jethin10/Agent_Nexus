@@ -1,5 +1,7 @@
 import { neon } from '@neondatabase/serverless'
-import { drizzle } from 'drizzle-orm/neon-http'
+import { drizzle as drizzleNeon } from 'drizzle-orm/neon-http'
+import { drizzle as drizzlePostgres } from 'drizzle-orm/node-postgres'
+import { Pool } from 'pg'
 import type { SQL } from 'drizzle-orm'
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
 import * as schema from './schema/index'
@@ -40,8 +42,23 @@ export async function executeRows<TRow>(db: Db, query: SQL): Promise<TRow[]> {
  * function freezes. The cost is no interactive transactions — every write in this
  * codebase is a single statement or a batch, deliberately.
  */
-export function makeDb(url: string) {
-  return drizzle(neon(url), { schema, casing: 'snake_case' })
+export type DatabaseTransport = 'neon-http' | 'postgres'
+
+export function databaseTransport(url: string): DatabaseTransport {
+  const hostname = new URL(url).hostname.toLowerCase()
+  return hostname.endsWith('.neon.tech') ? 'neon-http' : 'postgres'
+}
+
+export function makeDb(url: string): Db {
+  if (databaseTransport(url) === 'neon-http') {
+    return drizzleNeon(neon(url), { schema, casing: 'snake_case' }) as unknown as Db
+  }
+
+  // Render and ordinary hosted Postgres expose the wire protocol rather than Neon's
+  // HTTP endpoint. Keep a small process-level pool; `db()` caches this Drizzle client
+  // across warm requests and Render's free instance has intentionally modest limits.
+  const pool = new Pool({ connectionString: url, max: 5, idleTimeoutMillis: 30_000 })
+  return drizzlePostgres(pool, { schema, casing: 'snake_case' }) as unknown as Db
 }
 
 let cached: Db | undefined

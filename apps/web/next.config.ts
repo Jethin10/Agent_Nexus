@@ -63,6 +63,7 @@ const config: NextConfig = {
     '@electric-sql/pglite',
     '@electric-sql/pglite-pgvector',
     'e2b',
+    'pg',
   ],
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },
