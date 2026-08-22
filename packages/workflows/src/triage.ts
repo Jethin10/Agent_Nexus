@@ -19,12 +19,12 @@ import { NormalizedEvent, decide, type Candidate } from '@ascendant/core'
 import { inngest } from './events.js'
 import { flushTraces, openRun } from './runtime.js'
 import { githubWriter } from './github-write.js'
-import { repoFromEnv } from './repo.js'
+import { repoForOrg } from './repo.js'
 import {
   createLinearWorkItem,
   linearFromEnv,
   notifySlack,
-  slackFromEnv,
+  slackForOrg,
 } from './notify.js'
 import { updateTicket } from './tickets.js'
 import { embedEvent, embedText, eventEmbeddingContent } from './embeddings.js'
@@ -293,9 +293,9 @@ export const triageFn = inngest.createFunction(
     await step.run('respond-at-source', async () => {
       const failures: string[] = []
       let githubFailed = false
-      let repo: Awaited<ReturnType<typeof repoFromEnv>>
+      let repo: Awaited<ReturnType<typeof repoForOrg>>
       try {
-        repo = await repoFromEnv()
+        repo = await repoForOrg(orgId)
       } catch (err) {
         // The immutable decision is already persisted. Authentication failure degrades
         // the source response; it must not erase or repeatedly re-run the judgement.
@@ -319,7 +319,7 @@ export const triageFn = inngest.createFunction(
       }
 
       if (decided.outcome === 'DEFER' || decided.outcome === 'ESCALATE') {
-        const slack = await notifySlack(slackFromEnv(), {
+        const slack = await notifySlack(await slackForOrg(orgId), {
           text: slackDecisionSummary(decided),
           decisionId: decided.decisionId,
         })
@@ -372,7 +372,7 @@ export const triageFn = inngest.createFunction(
           })
         }
 
-        const slack = await notifySlack(slackFromEnv(), {
+        const slack = await notifySlack(await slackForOrg(orgId), {
           text: `*ACCEPT* — ${decided.title}\n${decided.reasoning}`,
           decisionId: decided.decisionId,
         })

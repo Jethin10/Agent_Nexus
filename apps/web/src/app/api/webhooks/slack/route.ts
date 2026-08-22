@@ -10,6 +10,7 @@ import { currentOrgId } from '@/lib/org'
 import { ensureDb } from '@/lib/local-db'
 import { slackReviewerAllowed } from '@/lib/slack-auth'
 import { persistContextEvents } from '@/lib/context-ingest'
+import { connectionForOrg } from '@ascendant/workflows'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -43,8 +44,16 @@ export async function POST(req: Request): Promise<Response> {
     return json({ error: 'Slack payload is not JSON' }, 400)
   }
 
+  await ensureDb()
+  const orgId = currentOrgId()
+  const database = db()
+  const connection = await connectionForOrg(database, orgId, 'slack')
+  const configuredReviewers = [
+    process.env.SLACK_REVIEWER_IDS,
+    ...(connection?.reviewerIds ?? []),
+  ].filter(Boolean).join(',')
   const slackUserId = payload.user?.id
-  if (!slackReviewerAllowed(slackUserId, process.env.SLACK_REVIEWER_IDS)) {
+  if (!slackReviewerAllowed(slackUserId, configuredReviewers)) {
     return json({ error: 'Slack user is not authorized to resolve Ascendant decisions' }, 403)
   }
 
@@ -53,9 +62,6 @@ export async function POST(req: Request): Promise<Response> {
   const decisionId = action?.value
   if (!outcome || !decisionId) return json({ error: 'unsupported Slack action' }, 422)
 
-  await ensureDb()
-  const orgId = currentOrgId()
-  const database = db()
   const decision = await getDecision(database, orgId, decisionId)
   if (!decision) return json({ error: 'decision not found' }, 404)
   const event = await getEvent(database, orgId, decision.eventId)
@@ -98,8 +104,16 @@ async function handleSlackEvent(body: string): Promise<Response> {
   }
 
   const event = payload.event
+  await ensureDb()
+  const orgId = currentOrgId()
+  const connection = await connectionForOrg(db(), orgId, 'slack')
   const allowed = new Set(
-    (process.env.SLACK_INGEST_CHANNEL_IDS || process.env.SLACK_INGEST_CHANNEL_ID || process.env.SLACK_CHANNEL_ID || '')
+    [
+      process.env.SLACK_INGEST_CHANNEL_IDS,
+      process.env.SLACK_INGEST_CHANNEL_ID,
+      process.env.SLACK_CHANNEL_ID,
+      connection?.channelId,
+    ].filter(Boolean).join(',')
       .split(',').map((channel) => channel.trim()).filter(Boolean),
   )
   if (allowed.size === 0) return json({ error: 'no Slack ingest channel is configured' }, 503)
@@ -113,7 +127,7 @@ async function handleSlackEvent(body: string): Promise<Response> {
     text: event.text ?? '',
     ...(event.bot_id ? { botId: event.bot_id } : {}),
     ...(event.subtype ? { subtype: event.subtype } : {}),
-  }, currentOrgId())
+  }, orgId)
   if (!raw) return json({ ok: true, ignored: true, reason: 'message' }, 200)
 
   const saved = await persistContextEvents([raw])

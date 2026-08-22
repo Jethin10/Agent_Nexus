@@ -11,9 +11,9 @@ import { qa } from '@ascendant/agents'
 import { selectDriver, runTests, SandboxError } from '@ascendant/sandbox'
 import { inngest } from './events.js'
 import { flushTraces, openRun } from './runtime.js'
-import { applyDiff, repoClient, repoFromEnv } from './repo.js'
+import { applyDiff, repoClient, repoForOrg } from './repo.js'
 import { ticketById, updateTicket } from './tickets.js'
-import { linearFromEnv, notifyLinear, notifySlack, slackFromEnv } from './notify.js'
+import { linearFromEnv, notifyLinear, notifySlack, slackForOrg } from './notify.js'
 
 /**
  * Function 4 of 5 — `qa`. Runs the tests in a sandbox and asks the QA agent what the
@@ -47,7 +47,7 @@ export const qaFn = inngest.createFunction(
       return { id: r.id }
     })
 
-    const repo = await repoFromEnv()
+    const repo = await repoForOrg(orgId)
 
     /**
      * The sandbox step is deliberately one `step.run`. Everything inside it — create,
@@ -204,7 +204,7 @@ export const qaFn = inngest.createFunction(
       const ticket = await ticketById(db(), orgId, ticketId)
       const [linear, slack] = await Promise.all([
         notifyLinear(linearFromEnv(), { issueId: ticket.linearId, stage: 'In Review' }),
-        notifySlack(slackFromEnv(), {
+        notifySlack(await slackForOrg(orgId), {
           text: `*QA ${tested.verdict.toUpperCase()}* — ${ticket.title}\nThe diff is ready for delivery.`,
           ts: ticket.slackTs,
           decisionId: ticket.decisionId,

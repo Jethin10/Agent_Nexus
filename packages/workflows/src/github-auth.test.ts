@@ -1,6 +1,11 @@
 import { generateKeyPairSync } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { githubAppInstallationToken, signAppJwt } from './github-auth.js'
+import {
+  githubAppInstallationToken,
+  githubInstallationToken,
+  listInstallationRepositories,
+  signAppJwt,
+} from './github-auth.js'
 import { repoFromEnv } from './repo.js'
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
@@ -75,6 +80,42 @@ describe('GitHub App authentication', () => {
       name: 'GithubAuthError',
       status: 404,
     })
+  })
+
+  it('mints directly from a persisted installation id without a repository lookup', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ token: 'ghs_fresh' }))
+    await expect(githubInstallationToken({
+      appId: '12345',
+      privateKeyBase64: PRIVATE_KEY_BASE64,
+      installationId: 987,
+      repositories: ['api'],
+      fetcher,
+      now: new Date('2026-08-12T12:00:00Z'),
+    })).resolves.toBe('ghs_fresh')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher.mock.calls[0]?.[0]).toBe('https://api.github.com/app/installations/987/access_tokens')
+    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({ body: JSON.stringify({ repositories: ['api'] }) })
+  })
+
+  it('lists and normalizes repositories available to an installation token', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ repositories: [{
+      id: 7,
+      name: 'api',
+      full_name: 'acme/api',
+      private: true,
+      default_branch: 'trunk',
+      owner: { login: 'acme' },
+    }] }))
+    await expect(listInstallationRepositories({ token: 'ghs_short', fetcher })).resolves.toEqual([{
+      id: 7,
+      name: 'api',
+      fullName: 'acme/api',
+      owner: 'acme',
+      private: true,
+      defaultBranch: 'trunk',
+    }])
+    const headers = fetcher.mock.calls[0]?.[1]?.headers as Record<string, string>
+    expect(headers.authorization).toBe('Bearer ghs_short')
   })
 
   it('rejects malformed app credentials before any network request', async () => {

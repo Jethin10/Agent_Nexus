@@ -14,13 +14,18 @@ import { NextResponse, type NextRequest } from 'next/server'
  * would be more code than the thing it protects. It is a gate, not an identity system —
  * `currentOrgId()` still resolves to one configured org.
  *
- * Two routes are exempt, and both already authenticate more strongly than a password:
+ * Three endpoint families are exempt:
  *
  *   /api/webhooks/github   HMAC-SHA256 over the raw body against the shared secret,
  *                          compared with timingSafeEqual (§15.2). GitHub cannot send
  *                          an Authorization header, so requiring one here would break
  *                          ingestion entirely.
  *   /api/inngest           Inngest's own request signing key.
+ *   /api/health            Public credential-safe readiness for uptime checks. It is
+ *                          read-only and returns no provider values or error details.
+ *   OAuth callback paths   Provider redirects authenticated by signed, browser-bound
+ *                          OAuth state. Exact GET paths only; connection starts and
+ *                          mutations remain behind dashboard auth.
  *
  * Adding Basic auth in front of either would not add security — it would replace a
  * cryptographic signature over the payload with a static password.
@@ -29,7 +34,12 @@ import { NextResponse, type NextRequest } from 'next/server'
 const REALM = 'Ascendant'
 
 /** Authenticated by signature instead; see the note above. */
-const EXEMPT = ['/api/webhooks/', '/api/inngest']
+const EXEMPT = ['/api/webhooks/', '/api/inngest', '/api/health']
+const OAUTH_CALLBACKS = new Set([
+  '/api/connect/github/callback',
+  '/api/connect/slack/callback',
+  '/api/connect/google/callback',
+])
 
 function unauthorized(): NextResponse {
   return new NextResponse('Authentication required.', {
@@ -65,7 +75,9 @@ async function secretsMatch(a: string, b: string): Promise<boolean> {
 
 export async function middleware(req: NextRequest): Promise<NextResponse> {
   const { pathname } = req.nextUrl
-  if (EXEMPT.some((p) => pathname.startsWith(p))) return NextResponse.next()
+  if (EXEMPT.some((p) => pathname.startsWith(p)) || (req.method === 'GET' && OAUTH_CALLBACKS.has(pathname))) {
+    return NextResponse.next()
+  }
 
   if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
     const origin = req.headers.get('origin')

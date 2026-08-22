@@ -1,4 +1,6 @@
 import { linearWriter, slackWriter, type LinearWriter, type SlackWriter } from '@ascendant/connectors'
+import { db as defaultDb, type Db } from '@ascendant/db'
+import { connectionForOrg } from './connections.js'
 
 /**
  * Delivery's outbound side channels: Linear for state, Slack for notification.
@@ -17,6 +19,14 @@ export function slackFromEnv(): SlackWriter | undefined {
   const channel = process.env.SLACK_CHANNEL_ID
   if (!token || !channel) return undefined
   return slackWriter({ token, channel })
+}
+
+/** Resolve the organization's installed Slack workspace, retaining env-based local setup. */
+export async function slackForOrg(orgId: string, database: Db = defaultDb()): Promise<SlackWriter | undefined> {
+  const connection = await connectionForOrg(database, orgId, 'slack')
+  return connection
+    ? slackWriter({ token: connection.botToken, channel: connection.channelId })
+    : slackFromEnv()
 }
 
 export function linearFromEnv(): LinearWriter | undefined {

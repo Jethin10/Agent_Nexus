@@ -14,10 +14,10 @@ import { deliver as buildDelivery } from '@ascendant/agents'
 import { scanDiff } from '@ascendant/core'
 import { inngest } from './events.js'
 import { openRun } from './runtime.js'
-import { applyDiff, repoClient, repoFromEnv } from './repo.js'
+import { applyDiff, repoClient, repoForOrg } from './repo.js'
 import { githubWriter } from './github-write.js'
 import { ticketById, updateTicket } from './tickets.js'
-import { linearFromEnv, notifyLinear, notifySlack, slackFromEnv } from './notify.js'
+import { linearFromEnv, notifyLinear, notifySlack, slackForOrg } from './notify.js'
 
 /**
  * Function 5 of 5 — `deliver`. The pipeline's output is never a silent commit: it is
@@ -173,7 +173,7 @@ export const deliverFn = inngest.createFunction(
       }
     })
 
-    const repo = await repoFromEnv()
+    const repo = await repoForOrg(orgId)
     if (!repo) {
       await step.run('no-repo', async () => {
         await trace(db(), {
@@ -257,7 +257,7 @@ export const deliverFn = inngest.createFunction(
      * push above.
      */
     await step.run('notify', async () => {
-      const slack = await notifySlack(slackFromEnv(), {
+      const slack = await notifySlack(await slackForOrg(orgId), {
         text: built.slackSummary,
         ts: built.slackTs,
         prUrl: pushed.url,
