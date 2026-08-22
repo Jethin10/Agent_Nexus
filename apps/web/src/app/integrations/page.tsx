@@ -54,6 +54,9 @@ export default async function IntegrationsPage({ searchParams }: Props) {
 
 async function loadConnections(): Promise<{ summaries: ConnectionSummary[]; githubRepositories: Array<{ fullName: string }>; loadError?: string }> {
   try {
+    if (process.env.ASCENDANT_DEMO_MODE === '1') {
+      return { summaries: [], githubRepositories: [] }
+    }
     // The offline demo intentionally has no reusable OAuth grants. Avoid booting the
     // PGlite WASM store on this server-rendered page until encryption is configured;
     // the connection cards still provide the complete setup flow and readiness view.
